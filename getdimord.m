@@ -243,35 +243,35 @@ switch field
   % the logic for this code is to first check whether the size of a field
   % has an exact match to a potential dimensionality, if not, check for a
   % partial match (ignoring nans)
-  
+
   % note that the case for a cell dimension (typically pos) is handled at
   % the end of this section
-  
+
   case {'pos'}
     if isequalwithoutnans(datsiz, [npos 3])
       dimord = 'pos_unknown';
     end
-    
+
   case {'tri'}
     if datsiz(2)==3
       dimord = 'tri_unknown';
     end
-    
+
   case {'tet'}
     if datsiz(2)==4
       dimord = 'tet_unknown';
     end
-    
+
   case {'hex'}
     if datsiz(2)==8
       dimord = 'hex_unknown';
     end
-    
+
   case {'individual'}
     if isequalwithoutnans(datsiz, [nsubj nchan ntime])
       dimord = 'subj_chan_time';
     end
-    
+
   case {'avg' 'var' 'dof'}
     if isequal(datsiz, [nrpt nchan ntime])
       dimord = 'rpt_chan_time';
@@ -282,7 +282,7 @@ switch field
     elseif isequalwithoutnans(datsiz, [nchan ntime])
       dimord = 'chan_time';
     end
-    
+
   case {'powspctrm' 'fourierspctrm'}
     if isequal(datsiz, [nrpt nchan nfreq ntime])
       dimord = 'rpt_chan_freq_time';
@@ -301,7 +301,7 @@ switch field
     elseif isequalwithoutnans(datsiz, [nchan nfreq])
       dimord = 'chan_freq';
     end
-    
+
   case {'crsspctrm' 'cohspctrm'}
     if isequal(datsiz, [nrpt nchancmb nfreq ntime])
       dimord = 'rpt_chancmb_freq_time';
@@ -344,7 +344,7 @@ switch field
     elseif isequalwithoutnans(datsiz, [npos 1])
       dimord = 'pos';
     end
-    
+
   case {'cov' 'coh' 'csd' 'noisecov' 'noisecsd'}
     % these occur in timelock and in source structures
     if isequal(datsiz, [nrpt nchan nchan])
@@ -364,12 +364,12 @@ switch field
     elseif isequalwithoutnans(datsiz, [npos nrpt nori nori])
       dimord = 'pos_rpt_ori_ori';
     end
-    
+
   case {'tf'}
     if isequal(datsiz, [npos nfreq ntime])
       dimord = 'pos_freq_time';
     end
-    
+
   case {'pow' 'noise' 'rv' 'nai' 'kurtosis'}
     if isequal(datsiz, [npos ntime])
       dimord = 'pos_time';
@@ -394,7 +394,7 @@ switch field
     elseif isequalwithoutnans(datsiz, [nrpt npos nfreq])
       dimord = 'rpt_pos_freq';
     end
-    
+
   case {'mom' 'itc' 'aa' 'stat','pval' 'statitc' 'pitc'}
     if isequal(datsiz, [npos nori nrpt])
       dimord = 'pos_ori_rpt';
@@ -437,29 +437,29 @@ switch field
     elseif isequal(datsiz, [npos nfreq ntime])
       dimord = 'pos_freq_time';
     end
-    
+
   case {'filter'}
     if isequalwithoutnans(datsiz, [npos nori nchan]) || (isequal(datsiz([1 2]), [npos nori]) && isinf(nchan))
       dimord = 'pos_ori_chan';
     end
-    
+
   case {'leadfield'}
     if isequalwithoutnans(datsiz, [npos nchan nori]) || (isequal(datsiz([1 3]), [npos nori]) && isinf(nchan))
       dimord = 'pos_chan_ori';
     end
-    
+
   case {'ori' 'eta'}
     if isequal(datsiz, [npos nori]) || isequal(datsiz, [npos nori 1]) || isequal(datsiz, [npos 3]) || isequal(datsiz, [npos 3 1])
       dimord = 'pos_ori';
     elseif isequal(datsiz, [npos 1 nori]) || isequal(datsiz, [npos 1 3])
       dimord = 'pos_unknown_ori';
     end
-    
+
   case {'csdlabel'}
     if isequal(datsiz, [npos nori]) || isequal(datsiz, [npos 3])
       dimord = 'pos_ori';
     end
-    
+
   case {'trial'}
     if ~iscell(data.(field)) && isequalwithoutnans(datsiz, [nrpt nchan ntime])
       dimord = 'rpt_chan_time';
@@ -468,12 +468,12 @@ switch field
     elseif isequalwithoutnans(datsiz, [nchan nspike]) || isequalwithoutnans(datsiz, [nchan 1 nspike])
       dimord = '{chan}_spike';
     end
-    
+
   case {'sampleinfo' 'trialinfo' 'trialtime'}
     if isequalwithoutnans(datsiz, [nrpt nan])
       dimord = 'rpt_other';
     end
-    
+
   case {'cumtapcnt' 'cumsumcnt'}
     if isequalwithoutnans(datsiz, [nrpt 1])
       dimord = 'rpt';
@@ -482,29 +482,29 @@ switch field
     elseif isequalwithoutnans(datsiz, [nrpt nan])
       dimord = 'rpt_other';
     end
-    
+
   case {'topo'}
     if isequalwithoutnans(datsiz, [ntopochan nchan])
       dimord = 'topochan_chan';
     end
-    
+
   case {'unmixing'}
     if isequalwithoutnans(datsiz, [nchan ntopochan])
       dimord = 'chan_topochan';
     end
-    
+
   case {'anatomy' 'inside'}
     if isfield(data, 'dim') && isequal(datsiz, data.dim)
       dimord = 'dim1_dim2_dim3';
     elseif isequalwithoutnans(datsiz, [npos 1]) || isequalwithoutnans(datsiz, [1 npos])
       dimord = 'pos';
     end
-    
+
   case {'timestamp'}
     if iscell(data.(field)) && isfield(data, 'label') && datsiz(1)==nchan
       dimord = '{chan}_spike';
     end
-    
+
   case {'time'}
     if iscell(data.(field)) && isfield(data, 'label') && datsiz(1)==nrpt
       dimord = '{rpt}_time';
@@ -513,24 +513,24 @@ switch field
     elseif iscell(data.(field)) && isfield(data, 'label') && isfield(data, 'timestamp') && isequal(getdimsiz(data, 'timestamp'), datsiz) && datsiz(1)==nchan
       dimord = '{chan}_spike';
     end
-    
+
   case {'freq'}
     if iscell(data.(field)) && isfield(data, 'label') && datsiz(1)==nrpt
       dimord = '{rpt}_freq';
     elseif isvector(data.(field)) && isequal(datsiz, [1 nfreq ones(1,numel(datsiz)-2)])
       dimord = 'freq';
     end
-    
+
   case {'chantype', 'chanunit'}
     if numel(data.(field))==nchan
       dimord = 'chan';
     end
-    
+
   otherwise
     if isfield(data, 'dim') && isequal(datsiz, data.dim)
       dimord = 'dim1_dim2_dim3';
     end
-    
+
 end % switch field
 
 % deal with possible first pos which is a cell
@@ -543,7 +543,7 @@ if ~exist('dimord', 'var')
   % ATTEMPT 4: there is only one way that the dimensions can be interpreted
   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
   dimtok = cell(size(datsiz));
-  
+
   for i=1:length(datsiz)
     sel = find(siz==datsiz(i));
     if length(sel)==1
@@ -554,7 +554,7 @@ if ~exist('dimord', 'var')
       dimtok{i} = [];
     end
   end
-  
+
   if all(~cellfun(@isempty, dimtok))
     if iscell(data.(field))
       dimtok{1} = ['{' dimtok{1} '}'];
@@ -587,7 +587,7 @@ if ~exist('dimord', 'var')
     dimtok(datsiz==ndim1)     = {'dim1'};
     dimtok(datsiz==ndim2)     = {'dim2'};
     dimtok(datsiz==ndim3)     = {'dim3'};
-    
+
     if isempty(dimtok{end}) && datsiz(end)==1
       % remove the unknown trailing singleton dimension
       dimtok = dimtok(1:end-1);
@@ -595,7 +595,7 @@ if ~exist('dimord', 'var')
       % remove the unknown leading singleton dimension
       dimtok(2) = [];
     end
-    
+
     if all(~cellfun(@isempty, dimtok))
       if iscell(data.(field))
         dimtok{1} = ['{' dimtok{1} '}'];
@@ -629,7 +629,7 @@ if ~exist('dimord', 'var')
   % since there have been problems with trials not being selected correctly due to the warning going unnoticed
   % it is better to throw an error than a warning
   warning_dimord_could_not_be_determined(field, data);
-  
+
   dimtok(cellfun(@isempty, dimtok)) = {'unknown'};
   if all(~cellfun(@isempty, dimtok))
     if iscell(data.(field))

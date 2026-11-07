@@ -8,6 +8,5 @@ function tab = descriptive_stats(oldX,dimension)
    tab = table(mean(X)', std(X)', kurtosis(X)',...
    skewness(X)', max(X)', min(X)',...
    'RowNames',Names,'VariableNames',{'mean','std','kurt','skew','max','min'});
-   
-   
+
 end

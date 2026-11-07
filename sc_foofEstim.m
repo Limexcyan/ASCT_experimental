@@ -4,8 +4,8 @@ function [pk, loc, wid, prom] = sc_foofEstim(sig_temp,trialLength,Fs)
 
     % This function aproximates aperiodic component of a Power Spectrum of
     % a signal and then computes Number of distinct Peaks from it
-    
-    win =  trialLength;            % Window equal to trial length (Convention in ASCT) 
+
+    win =  trialLength;            % Window equal to trial length (Convention in ASCT)
     noverlap = round(win * 0.5);   % 50% overlap
     nfft = win;                    % larger FFT for smoother freq axis
 
