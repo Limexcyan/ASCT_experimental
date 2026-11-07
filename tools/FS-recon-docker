@@ -1,0 +1,245 @@
+#!/bin/bash
+# Construct individual source models from T1 images (FreeSurfer), then
+# run the original FieldTrip post-FreeSurfer processing.
+# USAGE: bash FS-recon-docker.sh
+# Set MRI_ROOT below, or run from the main directory containing subjects.
+
+ASCTDIR="/mnt/devv/ASCT"
+FS_IMAGE="freesurfer/freesurfer:8.2.0"
+FS_LICENSE='/opt/freesurfer/license/.license'
+FS_THREADS=28
+POSTFS="/opt/MATbox/fieldtrip/bin"
+MRI_ROOT=""  # Empty: current directory. Or set /path/to/rc.expFolder/rc.mriRawFolder.
+
+### DO NOT EDIT BELOW
+export PATH="/opt/workbench/bin_linux64:$PATH"
+set -u
+shopt -s nullglob
+start=$(date +%s)
+BDIR=$(pwd -P)
+if [[ -n "$MRI_ROOT" ]]; then
+    BASEDIR=$(realpath "$MRI_ROOT")
+else
+    BASEDIR="$BDIR"
+fi
+MRIEXT=mgz
+LOGFILE="$BASEDIR/fslog.txt"
+
+[[ -d "$BASEDIR" ]] || { echo "MRI root not found: $BASEDIR" >&2; exit 1; }
+[[ -f "$FS_LICENSE" ]] || { echo "License not found: $FS_LICENSE" >&2; exit 1; }
+docker image inspect "$FS_IMAGE" >/dev/null 2>&1 || {
+    echo "FreeSurfer image not found locally: $FS_IMAGE" >&2; exit 1;
+}
+POSTFS_SCRIPT="$POSTFS/ft_postfreesurferscript.sh"
+if [[ ! -f "$POSTFS_SCRIPT" ]]; then
+    echo "PostFS script not found: $POSTFS_SCRIPT" >&2
+    exit 1
+fi
+echo "PostFS helper: $POSTFS_SCRIPT"
+
+# Match the working Docker setup: the subject parent is mounted at /subjects.
+docker_fs() {
+    local program="$1"
+    shift
+    docker run --rm --cpus="$FS_THREADS" --shm-size=8g \
+        --mount "type=bind,src=$BASEDIR,dst=$BASEDIR" \
+        --mount "type=bind,src=$SUBJECTS_DIR,dst=/subjects" \
+        --mount "type=bind,src=$FS_LICENSE,dst=/license.txt,readonly" \
+        -e SUBJECTS_DIR=/subjects -e FS_LICENSE=/license.txt \
+        --entrypoint "$program" "$FS_IMAGE" "$@"
+}
+
+# recon-all in this image accesses /root. Run it as the container's default
+# user, then restore host ownership before creating progress markers/PostFS.
+fix_subject_ownership() {
+    docker_fs chown -R "$(id -u):$(id -g)" "$INDSUBJECT_DIR"
+}
+
+# PostFS stays on the host for wb_command. Only its two FreeSurfer commands
+# run in Docker. These simple binaries can run as the host user in /tmp,
+# so the resulting GIFTI files remain writable by host Workbench.
+postfs_fs() {
+    local program="$1"
+    shift
+    docker run --rm --cpus="$FS_THREADS" \
+        --user "$(id -u):$(id -g)" --workdir /tmp -e HOME=/tmp \
+        --mount "type=bind,src=$BASEDIR,dst=$BASEDIR" \
+        --mount "type=bind,src=$SUBJECTS_DIR,dst=/subjects" \
+        --mount "type=bind,src=$FS_LICENSE,dst=/license.txt,readonly" \
+        -e SUBJECTS_DIR=/subjects -e FS_LICENSE=/license.txt \
+        --entrypoint "$program" "$FS_IMAGE" "$@"
+}
+
+mri_info() {
+    postfs_fs mri_info "$@"
+}
+
+mris_convert() {
+    # Some FreeSurfer versions add lh./rh. to GIFTI metric filenames.
+    # Convert in a temporary folder, then place the result at the exact
+    # filename expected by the unchanged FieldTrip helper.
+    local output="${!#}" tmp target candidate
+    local -a args=("$@")
+    tmp=$(mktemp -d "$(dirname "$output")/.fsconvert-XXXXXX") || return 1
+    target="$tmp/$(basename "$output")"
+    args[${#args[@]}-1]="$target"
+    if ! postfs_fs mris_convert "${args[@]}"; then
+        rm -rf -- "$tmp"
+        return 1
+    fi
+    if [[ ! -s "$target" ]]; then
+        for candidate in "$tmp/lh.$(basename "$output")" "$tmp/rh.$(basename "$output")"; do
+            if [[ -s "$candidate" ]]; then
+                target="$candidate"
+                break
+            fi
+        done
+    fi
+    if [[ ! -s "$target" ]]; then
+        echo "mris_convert did not create the expected GIFTI: $output" >&2
+        rm -rf -- "$tmp"
+        return 1
+    fi
+    if ! mv -f -- "$target" "$output"; then
+        rm -rf -- "$tmp"
+        return 1
+    fi
+    rm -rf -- "$tmp"
+}
+
+run_postfs() {
+    command -v wb_command >/dev/null || {
+        echo 'PostFS requires host wb_command on PATH.' >&2
+        return 1
+    }
+    [[ -d "$ASCTDIR/MNE_functions/standard_mesh_atlases" ]] || {
+        echo "Atlas folder not found: $ASCTDIR/MNE_functions/standard_mesh_atlases" >&2
+        return 1
+    }
+    export BASEDIR SUBJECTS_DIR FS_IMAGE FS_LICENSE FS_THREADS
+    export -f postfs_fs mri_info mris_convert
+    # pipefail also catches failure of mri_info inside the helper's pipelines.
+    bash -o pipefail "$POSTFS_SCRIPT" "$SUBJECTS_DIR" "$SUBJECTNAME" \
+        "$ASCTDIR/MNE_functions/standard_mesh_atlases" || return 1
+    local hemisphere mesh surface output
+    for hemisphere in L R; do
+        for mesh in 4 8 32; do
+            for surface in white midthickness pial; do
+                output="$INDSUBJECT_DIR/workbench/$SUBJECTNAME.$hemisphere.$surface.${mesh}k_fs_LR.surf.gii"
+                [[ -s "$output" ]] || {
+                    echo "PostFS output missing or empty: $output" >&2
+                    return 1
+                }
+            done
+        done
+    done
+}
+
+# Find SC directories at any depth below MRI_ROOT, but accept only
+# subjectname/SC/subjectname.mgz as an input.
+FULLFILES=()
+while IFS= read -r -d '' SC_DIR; do
+    SUBJECT_DIR=$(dirname "$SC_DIR")
+    SUBJECTNAME=$(basename "$SUBJECT_DIR")
+    FULLFILE="$SC_DIR/$SUBJECTNAME.$MRIEXT"
+    [[ -f "$FULLFILE" ]] && FULLFILES+=("$FULLFILE")
+done < <(find "$BASEDIR" -type d -name SC -print0)
+NSUBJ=${#FULLFILES[@]}
+
+echo "found $NSUBJ scan[s] for reconstruction"
+echo ------------------------------------------
+echo "FreeSurfer Docker image: $FS_IMAGE"
+echo "basedir: $BASEDIR"
+echo "$(date '+%Y-%m-%d %H:%M:%S') -------FS-SCRIPT START-------" >> "$LOGFILE"
+
+failed=0
+for FULLFILE in "${FULLFILES[@]}"; do
+    echo ---------------------------------------------------
+    DIR=$(dirname "$FULLFILE")
+    INFILE=$(basename "$FULLFILE")
+    SUBJECTNAME="${INFILE%.$MRIEXT}"
+
+    INDSUBJECT_DIR=$(dirname "$DIR")
+    SUBJECTS_DIR=$(dirname "$INDSUBJECT_DIR")
+    export SUBJECTS_DIR
+    echo "subjectdir: $INDSUBJECT_DIR"
+    echo "subjectname: $SUBJECTNAME"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') subjectdir: $INDSUBJECT_DIR" >> "$LOGFILE"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') subjectname: $SUBJECTNAME" >> "$LOGFILE"
+
+    echo -------------------------------
+    echo CONVERSION
+    echo -------------------------------
+    mkdir -p "$INDSUBJECT_DIR/mri/orig"
+    if [[ ! -s "$INDSUBJECT_DIR/mri/orig/001.mgz" ]]; then
+        # Original mri_convert -c -oc 0 0 0, directly into recon-all input.
+        if ! docker_fs mri_convert -c -oc 0 0 0 \
+            "$FULLFILE" "$INDSUBJECT_DIR/mri/orig/001.mgz" \
+            >> "$LOGFILE" 2>&1; then
+            echo "Conversion failed for $SUBJECTNAME; see $LOGFILE" >&2
+            failed=$((failed+1))
+            continue
+        fi
+    fi
+    echo "$(date '+%Y-%m-%d %H:%M:%S') CONVERSION DONE" >> "$LOGFILE"
+
+    echo -------------------------------
+    echo ---FSparamsfollows---
+    echo -------------------------------
+    echo "subject dir: $SUBJECTS_DIR"
+    echo "insubjectdir: $INDSUBJECT_DIR"
+    echo "subject name: $SUBJECTNAME"
+
+    subject_failed=0
+    for PHASE in autorecon1 autorecon2 autorecon3; do
+        MARKER="$INDSUBJECT_DIR/scripts/asct-$PHASE.done"
+        if [[ -f "$MARKER" ]]; then
+            echo "$PHASE already completed for $SUBJECTNAME"
+            continue
+        fi
+        echo "RECON ${PHASE: -1}"
+        echo "$(date '+%Y-%m-%d %H:%M:%S') RECON $PHASE" >> "$LOGFILE"
+        if docker_fs recon-all "-$PHASE" -openmp "$FS_THREADS" \
+            -subjid "$SUBJECTNAME" >> "$LOGFILE" 2>&1; then
+            if ! fix_subject_ownership >> "$LOGFILE" 2>&1; then
+                echo "Could not restore ownership for $SUBJECTNAME; see $LOGFILE" >&2
+                failed=$((failed+1))
+                subject_failed=1
+                break
+            fi
+            mkdir -p "$INDSUBJECT_DIR/scripts"
+            touch "$MARKER"
+        else
+            fix_subject_ownership >> "$LOGFILE" 2>&1 || true
+            echo "$PHASE failed for $SUBJECTNAME; see $LOGFILE" >&2
+            failed=$((failed+1))
+            subject_failed=1
+            break
+        fi
+    done
+    [[ "$subject_failed" -eq 0 ]] || continue
+
+    echo -------------------------------
+    echo PostFS
+    echo -------------------------------
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ----POST-FS----" >> "$LOGFILE"
+    POST_MARKER="$INDSUBJECT_DIR/scripts/asct-postfs.done"
+    if [[ ! -f "$POST_MARKER" ]]; then
+        if run_postfs >> "$LOGFILE" 2>&1; then
+            touch "$POST_MARKER"
+        else
+            echo "PostFS failed for $SUBJECTNAME; see $LOGFILE" >&2
+            failed=$((failed+1))
+            continue
+        fi
+    fi
+    echo SUBJECT FINISHED
+    echo "$(date '+%Y-%m-%d %H:%M:%S') SUBJECT FINISHED: $SUBJECTNAME" >> "$LOGFILE"
+    echo -------------------------------
+done
+
+end=$(date +%s)
+runtime=$((end-start))
+echo "runtime: $runtime seconds; failed: $failed"
+echo "$(date '+%Y-%m-%d %H:%M:%S') runtime: $runtime; failed: $failed" >> "$LOGFILE"
+[[ "$NSUBJ" -gt 0 && "$failed" -eq 0 ]]

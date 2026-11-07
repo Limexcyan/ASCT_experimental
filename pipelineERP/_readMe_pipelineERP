@@ -1,0 +1,50 @@
+PipelineERP consists out of 4 main functions. They are named with capital characters to mark their status. They are saved in pipeline folder, and will be be rarely edited.
+Other functions, named with small characters, are consider as subscripts and are saved in in SC_FUNCTIONS folder.
+
+1. sc_1_PREPROC - preprocesses data 
+
+    Consists of: 
+    % REREFERENCING
+    % REJECTION OF REF. CHANNELS
+    % FILTERING OF HIGH AND LOW FREQUENCES
+    % REJECTION OF EOG ARTIFACTS
+    % REJECTION OF EOG CHANNELS
+    % POSSIBLY SAVING CONTINOUS (PREPROCESSED) DATA - to be specified in saveFolder
+
+2. sc_2_SEGM - segments data into epoch
+
+    % This function segments continous data into epoch. 
+    % Triggers of interst should be specified in 'EX_SETUP.m' script in 'design' section.
+    % It supports both no-recodding and recodding of triggers.
+        % If recodding of triggers is needed 'sc_recodding_TEMPLATE.m' script should be edited 
+        % and saved in experiment folder with an original name. 
+        % It's name is passed along as the 'segm_fun_to_call' parameter to this function. 
+        % for more info chek 'sc_recodding_TEMPLATE.m'
+    % Parameters such as prestim, poststim and baseline should be specified in EX_SETUP, accordingly to experimental disgign.
+
+3. sc_3_ARTIFACTS - rejects artifacts, accordingly to give specification
+
+    % This function provides code for artifact rejection.
+
+    % 1st stage reject trials which are exceptionally bad.
+    % 2nd stage either interpolated exceptionally bad channels or removes entire ds (if more than 8 channels are exceptionally bad)
+    % 3rd stage rejects muscle artifacts
+    % 4th stage takes care about range artifacts within each trial. If less than 4 channels exceeds threshold it interpolates those channels. If more than than 4 channels exceeds threshold, it removes entire trial.
+
+    For more info look up the function itself or pay attention to given parameters in EX_SETUP_TEMPLATE
+
+4. sc_4_ERPanalysis - This scirpt provides an oportunity to calculate Event Related Potentials 
+    from data which has been previously preprocessed, segmented and cleaned up from artifacts. 
+
+5. _sc_VISUALISATION - provides tools to visualise data at different stages of data analysis.
+
+6. _sc_recodding_TEMPLATE - The script provides code which recodes triggers assigned during experiment. It should be edited and saved in experiment folder!
+
+7. _EX_SETUP_TEMPLATE - provides a template of experiment SET_UP. 
+!!! Each of exp. parameter should be specified in this script. 
+!!! Script itself should be saved in experiment folder!
+
+8. _biosemi64_neighb.mat - provides coordinates of electrodes and 'elec' structure needed for channel interpolation
+ 
+
+

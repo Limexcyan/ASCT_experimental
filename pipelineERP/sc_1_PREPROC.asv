@@ -1,0 +1,267 @@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%% PREPROCESSING %%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Consists of:
+% REREFERENCING
+% REJECTION OF REF. CHANNELS
+% FILTERING OF HIGH AND LOW FREQUENCES
+% CORRECTION OF EOG ARTIFACTS
+% REJECTION OF EOG CHANNELS
+% POSSIBLY SAVING CONTINOUS (PREPROCESSED) DATA - to be specified in saveFolder
+
+
+%% READING FILE LIST %%%%%%%%
+
+clear infile
+
+switch rc.dataFormat
+    case 'bdf'
+        infile_all = sc_reading(bdfFolder, '*.bdf');
+    case 'eeglab'
+        infile_all = sc_reading(bdfFolder, '*.set');
+end
+
+if exist('beg_id') && exist('end_id')
+    infile = infile_all(beg_id:end_id);
+else
+    infile = infile_all;
+end
+
+
+%% PREPROCESSING %%%%%%%%
+
+clear data_all_prep
+
+saveFolder = [ analysisFolder '/1_PREPROCESSED'];
+if ~exist(saveFolder)
+    mkdir(saveFolder);
+end
+
+
+for ds = 1: length(infile)
+
+    [~, dsname, ~] = fileparts( infile{ds} ); %extracting name of the current subject file - needs to be provided before converting to eeglab data type
+    disp( ['[' num2str(round( 100*(ds)/length(infile))) '%] DS: ', num2str(ds), ' - ' , dsname, ' is being preprocessed' ]);  %mmw
+
+    switch rc.dataFormat
+        case 'bdf'
+            %%% rereferencing
+            cfg = [];
+            cfg.datafile = infile{ds};
+            cfg.dataset = infile{ds}; %both datafile and dataset need to be provided to start preprocessing
+            % cfg.reref       = 'no';
+            % cfg.refchannel  = chan.import_ref_chan; %referencing to given channels when reading from bdf file
+        case 'eeglab'
+            cfg = [];
+            cfg.dataset = infile;
+            cfg.datafile = infile;
+            % if isempty(chan.import_ref_chan)
+
+            % else
+            %     cfg.reref       = 'yes';
+            %     cfg.refchannel  = chan.import_ref_chan;
+            % end
+    end
+    cfg.reref       = 'no';
+    data_eeg = ft_preprocessing(cfg);
+
+    for i = chan.eeg
+        data_eeg.hdr.chantype{i} = 'eeg';
+    end
+
+    for i = chan.eog
+        data_eeg.hdr.chantype{i} = 'eog';
+    end
+
+    if isfield(chan, 'eda')
+        for i = chan.eda
+            data_eeg.hdr.chantype{i} = 'eda';
+        end
+        data_eda = data_eeg.trial{1}(chan.eda, :);
+    end
+
+
+    for i = chan.import_ref_chan
+        data_eeg.hdr.chantype{i} = 'ref';
+    end
+
+    chantypes = data_eeg.hdr.chantype;
+
+    for i = length(chantypes):-1:1
+        if ~(strcmp(data_eeg.hdr.chantype{i}, 'eeg') || strcmp(data_eeg.hdr.chantype{i}, 'eog'))
+            chantypes(i)=[];
+        end
+    end
+
+
+
+    if ~isempty(chan.import_ref_chan)
+        cfg = [];
+        cfg.reref       = 'yes';
+        cfg.refchannel  = chan.import_ref_chan; %referencing to given channels when reading from bdf file
+        data_eeg = ft_preprocessing(cfg, data_eeg);
+    end
+
+    if isfield(chan, 'eda')
+        data_eeg.trial{1}(chan.eda, :) = data_eda;
+    end
+
+
+    % % removing unused channels
+    % cfg = [];
+    % cfg.channel     = channels; %channels contains all channels that should be taken into account during data analysis
+    % data_eeg = ft_preprocessing(cfg, data_eeg);
+    % % chantypes = chantypes(sort(channels));
+
+    % remove unused channels (eeg+eog retained)
+    chan2retain = [];
+    for i = 1 : length(data_eeg.hdr.chantype)
+        if strcmp(data_eeg.hdr.chantype{i}, 'eeg') || strcmp(data_eeg.hdr.chantype{i}, 'eog') || strcmp(data_eeg.hdr.chantype{i}, 'eda')
+            chan2retain = [chan2retain data_eeg.hdr.label(i)];
+        end
+    end
+    cfg = [];
+    cfg.channel = chan2retain;
+    data_eeg = ft_preprocessing(cfg, data_eeg);
+  
+    if isfield(chan, 'eda')
+        chan.edanew = find(strcmp(data_eeg.label, 'GSR1'));
+        data_eda = data_eeg.trial{1}(chan.edanew, :);   % retain unfiltered eda channel
+    end
+
+    %%% filtering
+    cfg             = [];
+    cfg.hpfilter    = 'yes';     % enables high-pass filtering
+    cfg.hpfilttype  = filter.hptype;
+    cfg.hpfreq      = filter.hpfreq;       % sets up the frequency for high-pass filter
+    try %mmw
+        cfg.hpfiltord   = filter.hpord;
+    catch
+    end
+    cfg.lpfilter    = 'yes';     % enables low-pass filtering
+    cfg.lpfilttype  = filter.lptype;
+    cfg.lpfreq      = filter.lpfreq;        % sets up the frequency for low-pass filter
+    try %mmw
+        cfg.lpfiltord   = filter.lpord;
+    catch
+    end
+    data_eeg  = ft_preprocessing(cfg, data_eeg);
+
+    if isfield(chan, 'eda')
+        data_eeg.trial{1}(chan.edanew, :) = data_eda;   % separate filter for eda
+        cfg             = [];
+        cfg.lpfilter    = 'yes';    
+        cfg.lpfilttype  = 'but';
+        cfg.lpfreq      = 5;
+        cfg.plotfiltresp = 'yes';
+        data_eeg2  = ft_preprocessing(cfg, data_eeg);
+
+        cfg             = [];
+        cfg.hpfilter    = 'yes';    
+        cfg.hpfilttype  = 'but';
+        cfg.hpfreq      = 0.03;  
+        cfg.hpfiltord = 1;
+        cfg.plotfiltresp = 'yes';
+        data_eeg3  = ft_preprocessing(cfg, data_eeg2);
+        data_eeg.trial{1}(chan.edanew) = data_eeg3.trial{1}(chan.edanew);
+    end
+
+
+    if ds ==1
+        cfg.plotfiltresp = filter.plotresp;
+    end
+
+    if isfield(seg, 'resample_to')
+        cfg=[];
+        cfg.resamplefs = seg.resample_to;
+        cfg.detrend = 'no';
+        cfg.demean = 'no';
+        cfg.lpfilter = 'yes';
+        cfg.method = 'downsample';
+        cfg.lpfreq = '100';
+        downs = data_eeg.fsample/seg.resample_to;
+        data_eeg = ft_resampledata(cfg,data_eeg);
+        data_eeg.hdr.downs=downs;
+    end
+
+
+    %% EOG artifacts rejection by using EEGLAB crls_regression method
+
+    chan.eog_sq = [];
+    for i = 1:length(chantypes)
+        if strcmp(chantypes(i), 'eog')
+            chan.eog_sq = [chan.eog_sq i];
+        end
+    end
+
+
+    % switch to eeglab
+
+    [~, dsname, ~] = fileparts( infile{ds} ); %extracting name of the current subject file - needs to be provided before converting to eeglab data type
+    data_eeg.cfg.dataname = dsname; % custom name of the dataset
+    data_eeg.cfg.dataset = dsname; % custom name of the dataset
+
+    EEG = sc_ft2eeglab(data_eeg); % !!! must be called EEG - eeglab formalism    % conv to eeglab in order to use AAR toolbox
+    EEG = pop_crls_regression2( EEG, chan.eog_sq , 3, 0.9999, 0.01 ); %eog channels must be specfied in EX_SETUP in order to run crls regression
+
+    data_eeg.trial = eeglab2fieldtrip(EEG, 'raw', 'none').trial;     % conv data back to ft - only the data matrix
+
+    % remove EOG channels
+    if ~isfield(chan, 'eog_retain')   % default: remove
+        chan.eog_retain = 0;
+    end
+
+    if chan.eog_retain == 0
+        chan2retain = [];
+        for i = 1 : length(data_eeg.hdr.chantype)
+            if strcmp(data_eeg.hdr.chantype{i}, 'eeg')
+                chan2retain = [chan2retain data_eeg.hdr.label(i)];
+            end
+        end
+
+        cfg = [];
+        cfg.channel = chan2retain;
+        data_eeg = ft_preprocessing(cfg, data_eeg);
+    end
+
+
+    % prepare layout (only once)
+    if ds == 1
+        cfg = [];
+        if strcmp(rc.dataFormat , 'bdf')
+            sens = load('elec_biosemi70.mat');
+            cfg.elec = sens;
+        end
+        cfg.projection = 'polar';
+        layout = ft_prepare_layout(cfg, data_eeg);
+        % figure()
+        % ft_plot_layout(layout)
+        save(fullfile(saveFolder, 'layout.mat'), 'layout')
+        save(fullfile(saveFolder, 'sensors.mat'), 'sens')
+
+    end
+
+    if ~isfield(data_eeg, 'elec')
+        data_eeg.elec = sens;
+    end
+
+    % saving files
+    disp( [ '[' num2str(round( 100*(ds)/length(infile))) '%] Saving DS: ', num2str(ds), ' - ', dsname, ' PREP'] );   %mmw
+    file_name = fullfile(saveFolder, [dsname, '_PREP.mat']);
+    sc_parsave_prep(file_name, data_eeg);   % instead of regular 'save' function to override transparency violation
+
+end
+
+
+%% SAVING DATA for each subject %%%
+
+
+file_name = fullfile(saveFolder , '_PREP_param.mat');
+save(file_name, 'filter');
+file_name = fullfile(saveFolder , '_PREP_infile.mat');
+
+if ~exist('file_name')
+    save(file_name, 'infile');
+end
+
+

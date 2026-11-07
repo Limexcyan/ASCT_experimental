@@ -1,0 +1,19 @@
+#!/bin/bash
+
+echo $1 
+echo $2
+
+cd /mnt/devv/ASCT
+find -type f -name "*.m" -exec sed -i "s/$1/$2/g" {} \;
+
+cd /mnt/devv/Exp
+find -type f -name "*.m" -exec sed -i "s/$1/$2/g" {} \;
+
+cd /mnt/iSCSI2/Exp
+find -type f -name "*.m" -exec sed -i "s/$1/$2/g" {} \;
+
+cd /mnt/iSCSI3/Exp2
+find -type f -name "*.m" -exec sed -i "s/$1/$2/g" {} \;
+
+
+

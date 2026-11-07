@@ -1,0 +1,92 @@
+#   !/bin/bash 
+
+# construts individual source model based on T1 image (FS) and downsampling of cortical mesh (HCP-workbench)
+# https://www.fieldtriptoolbox.org/tutorial/sourcemodel/
+# USAGE: ./FS-recon.sh 
+# run from the main path when subjects subdirectories are located ./FS-recon.sh 
+
+start=`date +%s`
+
+BDIR=${PWD}
+
+MRIEXT=mgz
+
+# ----------------------------------
+
+NCHAR=${#MRIEXT}
+
+NSUBJ=0
+
+for FULLFILE in **/*.$MRIEXT; do 
+NSUBJ=$((NSUBJ+1))
+done
+
+echo found $NSUBJ scan[s] for reconstruction
+echo ------------------------------------------
+
+export FREESURFER_HOME=/opt/freesurfer/7.4.1
+echo $FREESURFER_HOME
+
+BASEDIR=${PWD}
+
+echo basedir: $BASEDIR
+
+shopt -s globstar
+#for FULLFILE in **/*.$MRIEXT; do
+    
+    echo ---------------------------------------------------
+
+    cd $BASEDIR
+    
+    DIR="$(dirname "${FULLFILE}")" 
+    INFILE="$(basename "${FULLFILE}")"    
+
+    SUBJECTS_DIR=${PWD}
+    export SUBJECTS_DIR
+    INDSUBJECT_DIR=${PWD}/$DIR
+    CHAROFFSET=$(($NCHAR+1))
+    SUBJECTNAME=${INFILE::-$CHAROFFSET}
+    export SUBJECTNAME
+
+    echo sunjectdir: $INDSUBJECT_DIR
+    echo subjectname: $SUBJECTNAME
+
+
+    source $FREESURFER_HOME/SetUpFreeSurfer.sh
+    
+    TONEFILE="$SUBJECTNAME.$MRIEXT"
+ 
+#    MRIEXTCMP=nii.gz
+#    if [ $MRIEXT != $MRIEXTCMP ]
+#    then
+#    echo 1stCONVERSION
+#     mri_convert $INDSUBJECT_DIR/$INFILE $INDSUBJECT_DIR/$TONEFILE
+
+    rm $INDSUBJECT_DIR/orig.mgz
+
+echo -------------------------------
+echo PostFS
+echo -------------------------------
+
+    #LOG
+#    echo $(date '+%Y-%m-%d %H:%M:%S') ----POST-FS---- >> /home/mirek/Exp2/dyslexia_KJ/fslog.txt
+
+echo subjdir: $SUBJECTS_DIR subjname: $SUBJECTNAME
+
+    /opt/MATbox/fieldtrip/bin/ft_postfreesurferscript2.sh $SUBJECTS_DIR $SUBJECTNAME /mnt/devv/ASCT/MNE_functions/standard_mesh_atlases
+
+echo SUBJECT FINISHED
+
+
+
+echo -------------------------------
+
+#done
+
+
+end=`date +%s`
+runtime=$((end-start))
+
+#echo $runtime
+#echo $(date '+%Y-%m-%d %H:%M:%S') runtime: $runtime >> /home/mirek/Exp2/dyslexia_KJ/fslog.txt
+#echo ---------------- >> /home/mirek/Exp2/dyslexia_KJ/fslog.txt

@@ -1,0 +1,122 @@
+%sc_4_2_ICA_VIZ
+clear all_data_ica1 all_data_ica2
+
+delete(gcp('nocreate'))
+parpool("Processes")
+
+folderICA1  = fullfile (rc.analysisFolder, '4_ICA1' );
+folderICA2 = fullfile (rc.analysisFolder, '6_ICA2' );
+
+% default parameter settings
+if ~isfield(ar, 'ica_ic2screen'); ar.ica_ic2screen = 0; end
+
+% manage parpool / check if not expired
+if rc.useParallel
+    poolobj = gcp('nocreate'); % just check, do not create new one.
+    if isempty(poolobj)
+        parpool('Processes')
+    end
+end
+
+
+%%%---> ICA 1 VIZ <----%%%
+
+if exist(folderICA1)
+    infile_all = sc_reading(folderICA1, '*ICA1_decomp.mat');
+
+    if exist('begId') && exist('endId')
+        infile = infile_all(begId : endId);
+    else
+        infile = infile_all;
+    end
+else
+    error( 'There are no ICA1 Decomposed data in the /4_ICA1 folder.');
+end
+
+
+for  ds = 1 : length(infile)
+  
+
+    if  rc.stop  >= 3 && rc.load <=4
+      [~, dsname, ~] = fileparts(infile{ds});
+        disp(strcat(' [', num2str( round(ds/length(infile)*100)), '%] Loading ICA1 decomposition: ', dsname, ' (DS ', num2str(ds), ')'));
+
+        datatmp = load( infile{ds}, 'decomp_ica1' );
+    end
+    
+    if  rc.stop  >= 3 && rc.load <=3
+        sc_4_DECOMPOSITION_ICA1_viz_dev(datatmp.decomp_ica1, chan, rc, seg, ica, ar, filter)
+    end
+
+
+    if  rc.stop  >= 4 && rc.load <=4
+    
+        %%%---> ICA 1 ARJ VIZ <----%%%
+        outFolder = fullfile (folderICA1, char(strrep(dsname,"_ICA1_decomp","")), 'IC_mixing_hist');
+        if ~exist(outFolder, 'dir'); mkdir (outFolder); end
+    
+        [n_IC , ~] = size(datatmp.decomp_ica1.ICA.best_iter.IC_sig);
+        IC_mix = datatmp.decomp_ica1.ICA.iter(datatmp.decomp_ica1.ICA.best_iter.index).mixing;
+    
+        for ic=1:n_IC  %parfor here!
+    
+            figure('visible','off');
+            tiledlayout(1,2);
+    
+            nexttile
+            histogram(zscore(IC_mix(:,ic)),100)
+            set(gca,'FontSize',12)
+            title(['IC ' num2str(ic)])
+    
+            nexttile
+            if rc.eeg
+                topoplotsc(IC_mix(:,ic), fullfile (folderICA1, char(strrep(dsname,"_ICA1_decomp","")), 'ch_trimmed.elc'), 'nosedir', chan.ori, 'electrodes', 'labels');
+            else
+                topoplotsc(IC_mix(:,ic), fullfile (folderICA1, char(strrep(dsname,"_ICA1_decomp","")), 'ch_trimmed.elc'), 'nosedir', chan.ori, 'electrodes', 'on');
+            end
+            title(['IC ' num2str(ic)], 'color', 'k')
+    
+            if ic<10
+                print( strcat(outFolder, '/', char(strrep(dsname,"_ICA1_decomp","")), '_bestiter', '_IC0', num2str(ic), '_hist.jpg'),'-djpeg','-r180');
+            else
+                print( strcat(outFolder, '/', char(strrep(dsname,"_ICA1_decomp","")), '_bestiter', '_IC', num2str(ic), '_hist.jpg'),'-djpeg','-r180');
+            end
+    
+            close;
+        end
+    end
+end
+
+
+
+
+
+
+%%%---> ICA 2 VIZ <----%%%
+if  rc.stop  >= 5 && rc.load <=5
+
+if exist(folderICA2)
+    infile_all = sc_reading(folderICA2, '*_ica2.mat');
+
+    if exist('begId') && exist('endId')
+        infile = infile_all(begId : endId);
+    else
+        infile = infile_all;
+    end
+else
+    error( 'There are no ICA2 Decomposed data in the /6_ICA1 folder.');
+end
+
+
+%%% Process the data first using THREADING 
+parfor ds = 1:length(infile)
+    [~, dsname, ~] = fileparts(infile{ds});
+    disp(strcat(' [', num2str( round(ds/length(infile)*100)), '%] Loading ICA1 decomposition: ', dsname, ' (DS ', num2str(ds), ')'));
+    datatmp = load( infile{ds}, 'data_ica2' );
+
+    sc_4_DECOMPOSITION_ICA2_viz_dev(datatmp.data_ica2,chan, rc, seg, ica, filter)
+end
+end
+
+delete(gcp('nocreate'))
+parpool("Threads")

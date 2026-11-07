@@ -1,0 +1,165 @@
+#   !/bin/bash 
+
+# construts individual source model based on T1 image (FS) and downsampling of cortical mesh (HCP-workbench)
+# https://www.fieldtriptoolbox.org/tutorial/sourcemodel/
+# USAGE: ./FS-recon.sh 
+# run from the main path when subjects subdirectories are located ./FS-recon.sh 
+# configure directories below
+
+
+ASCTDIR="/mnt/devv/ASCT"
+
+
+### DO NOT EDIT BELOW
+
+start=`date +%s`
+
+BDIR=${PWD}
+
+MRIEXT=mgz
+
+# ----------------------------------
+
+NCHAR=${#MRIEXT}
+
+NSUBJ=0
+
+for FULLFILE in **/*.$MRIEXT; do 
+NSUBJ=$((NSUBJ+1))
+done
+
+echo found $NSUBJ scan[s] for reconstruction
+echo ------------------------------------------
+
+export FREESURFER_HOME=/opt/freesurfer/7.4.1
+echo $FREESURFER_HOME
+
+BASEDIR=${PWD}
+
+echo basedir: $BASEDIR
+
+LOGFILE=$BASEDIR/"fslog.txt"
+
+
+echo $(date '+%Y-%m-%d %H:%M:%S') -------FS-SCRIPT START------- >> $LOGFILE
+
+
+shopt -s globstar
+for FULLFILE in **/*.$MRIEXT; do 
+    
+    echo ---------------------------------------------------
+
+    cd $BASEDIR
+    
+    DIR="$(dirname "${FULLFILE}")" 
+    INFILE="$(basename "${FULLFILE}")"    
+
+    SUBJECTS_DIR=${PWD}
+    export SUBJECTS_DIR
+    INDSUBJECT_DIR=${PWD}/$DIR
+    CHAROFFSET=$(($NCHAR+1))
+    SUBJECTNAME=${INFILE::-$CHAROFFSET}
+    export SUBJECTNAME
+
+    echo sunjectdir: $INDSUBJECT_DIR
+    echo subjectname: $SUBJECTNAME
+
+    #LOG
+    echo $(date '+%Y-%m-%d %H:%M:%S') sunjectdir: $INDSUBJECT_DIR >> $LOGFILE
+    echo $(date '+%Y-%m-%d %H:%M:%S') subjectname: $SUBJECTNAME >> $LOGFILE
+
+    source $FREESURFER_HOME/SetUpFreeSurfer.sh
+    
+    TONEFILE="$SUBJECTNAME.$MRIEXT"
+ 
+#    MRIEXTCMP=nii.gz
+#    if [ $MRIEXT != $MRIEXTCMP ]
+#    then
+#    echo 1stCONVERSION
+     mri_convert $INDSUBJECT_DIR/$INFILE $INDSUBJECT_DIR/$TONEFILE
+
+    #LOG
+    echo $(date '+%Y-%m-%d %H:%M:%S') 1st CONVERSION >> $LOGFILE
+
+#    fi
+
+
+
+echo -------------------------------
+echo CONVERSION
+echo -------------------------------
+
+    mri_convert -c -oc 0 0 0 $INDSUBJECT_DIR/$INFILE $INDSUBJECT_DIR/orig.mgz
+
+    cd $INDSUBJECT_DIR
+    
+     mkdir $INDSUBJECT_DIR/mri
+     mkdir $INDSUBJECT_DIR/mri/orig
+     cp $INDSUBJECT_DIR/orig.mgz $INDSUBJECT_DIR/mri/orig/001.mgz
+
+    #LOG
+    echo $(date '+%Y-%m-%d %H:%M:%S') 2nd CONVERSION >> $LOGFILE
+    
+echo -------------------------------
+echo ---FSparamsfollows---
+echo -------------------------------
+
+    echo subject dir: $SUBJECTS_DIR
+    echo insubjectdir: $INDSUBJECT_DIR
+    echo subject name: $SUBJECTNAME     
+
+    #LOG
+    echo $(date '+%Y-%m-%d %H:%M:%S') subject dir: $SUBJECTS_DIR >> $LOGFILE
+    echo $(date '+%Y-%m-%d %H:%M:%S') insubjectdir: $INDSUBJECT_DIR >> $LOGFILE
+    echo $(date '+%Y-%m-%d %H:%M:%S')  subject name: $SUBJECTNAME >> $LOGFILE
+
+    echo RECON PHASE1
+    #LOG
+    echo $(date '+%Y-%m-%d %H:%M:%S') RECON PHASE1 >> $LOGFILE
+
+    recon-all -autorecon1 -openmp 10 -subjid $SUBJECTNAME
+
+
+    echo RECON PHASE1
+    #LOG
+    echo $(date '+%Y-%m-%d %H:%M:%S') RECON PHASE2 >> $LOGFILE
+
+    recon-all -autorecon2 -openmp 10 -subjid $SUBJECTNAME
+
+    echo RECON PHASE3
+    #LOG
+    echo $(date '+%Y-%m-%d %H:%M:%S') RECON PHASE3 >> $LOGFILE
+
+    recon-all -autorecon3 -openmp 10 -subjid $SUBJECTNAME
+
+    rm $INDSUBJECT_DIR/orig.mgz
+
+echo -------------------------------
+echo PostFS
+echo -------------------------------
+
+    #LOG
+    echo $(date '+%Y-%m-%d %H:%M:%S') ----POST-FS---- >> $LOGFILE
+
+    /opt/MATbox/fieldtrip/bin/ft_postfreesurferscript2.sh $SUBJECTS_DIR $SUBJECTNAME $ASCTDIR/MNE_functions/standard_mesh_atlases
+
+echo SUBJECT FINISHED
+
+    #LOG
+    echo $(date '+%Y-%m-%d %H:%M:%S') SUBJECT FINISHED >> $LOGFILE
+    
+
+echo -------------------------------
+echo -------------------------------
+echo -------------------------------
+
+done
+
+
+end=`date +%s`
+runtime=$((end-start))
+
+echo $runtime
+echo $(date '+%Y-%m-%d %H:%M:%S') runtime: $runtime >> $LOGFILE
+echo ---------------- >> $LOGFILE
+
