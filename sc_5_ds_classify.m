@@ -1,24 +1,24 @@
 function [classif_table_iters,ica2stat] = sc_5_ds_classify(infile, ds, rc, chan, ica, seg, currentFolder, progressfile,Data_volume, Mode,Mods)
 
     % New Function for classyfing ICA components for brain and not brain
-    % components and saves in corresponding data_ica2 structure 
+    % components and saves in corresponding data_ica2 structure
 
     %Input:
     % infile        - file lists in cell array
     % ds            - current Data Subject
     % rc            - structure containing parameters
     % chan          - structure containing channel info
-    % ica           - structure containing ICA data 
+    % ica           - structure containing ICA data
     % seg           - structure containing study info and trial segmentations
     % currentFolder - folder in which we have our data
-    % progressfile  - file with data 
+    % progressfile  - file with data
     % DataVolume    - flag controlling amount of ICA iterations being preprocessed
     % Mode          - Whether we classify, label or validate our dataset
 
-    if (isfield(rc,'timing') && rc.timing)   
+    if (isfield(rc,'timing') && rc.timing)
         tDS = tic;
         Timing = struct('load',0,'features',0,'images',0,'predict',0,'plotdata',0, ...
-                   'save',0,'bestMaps',0,'verbosity',0,'total',0,'nIters',0,'nDone',0); 
+                   'save',0,'bestMaps',0,'verbosity',0,'total',0,'nIters',0,'nDone',0);
     end
 
     if (isfield(rc,'timing') && rc.timing); t_l = tic; end
@@ -27,16 +27,16 @@ function [classif_table_iters,ica2stat] = sc_5_ds_classify(infile, ds, rc, chan,
     classif_tbl_by_iter = {};     % same tables, stored under the REAL iteration number
     convModel  = Mods.convModel;   featModel   = Mods.featModel;
     normStruct = Mods.normStruct;  weightsInfo = Mods.mWeights;
-    
-   
-    
-    %%% load file 
+
+
+
+    %%% load file
     [~, dsname, ~] = fileparts(infile{ds}); % File parts return path, name and extension, we want only name
     disp(strcat(' [', num2str( round(100*ds/length(infile) )), '%] Loading artifree ICA2 decomposed DS: ', dsname, ' - ', infile{ds}));
     load_file = infile{ds};
     load(load_file);     % It reads biosemi EEG system : 70 channels 64 eeg, 4 electric, 2 ref
 
-  
+
     %Extracting data from all_ica for specific subject: ICA, events, frequency, ica_parameters
     ICA = data_ica2.ICA;
     trial = data_ica2.trial;
@@ -77,9 +77,9 @@ function [classif_table_iters,ica2stat] = sc_5_ds_classify(infile, ds, rc, chan,
     if exist(fullfile(saveFolderds,dsname))==0; mkdir (fullfile(saveFolderds,dsname)); end
     sc_locfile( elecloc_ica, fullfile(saveFolderds,dsname)); %trims elc file according to actual no of channels
 
-    trim_folder = fullfile (saveFolderds, dsname); % Whete the trim folder is located 
+    trim_folder = fullfile (saveFolderds, dsname); % Whete the trim folder is located
 
-        
+
     %%% Get main data:
     Fs          = data_ica2.hdr.Fs;
   nTica       = length(data_ica2.ica_par.time_ica);
@@ -88,21 +88,21 @@ function [classif_table_iters,ica2stat] = sc_5_ds_classify(infile, ds, rc, chan,
   ori         = chan.ori;
 
 
-    %%% Get Iterations that interests you the most (Either All or Best) 
+    %%% Get Iterations that interests you the most (Either All or Best)
     best_iter_index = ICA.best_iter.index;
     if strcmp(Data_volume, 'all')     % All Iterations
         num_iters = size(ICA.iter,2);
         I = (1:size(ICA.iter,2));
-    elseif strcmp(Data_volume,'best') % Only Best N iterations (Hardcoded 5) 
-        [~,I] = sort([ICA.iter.total_ic_number],'descend'); %based on IC number %%% FIX ASAP! !! TEMP MD! 
+    elseif strcmp(Data_volume,'best') % Only Best N iterations (Hardcoded 5
+        [~,I] = sort([ICA.iter.total_ic_number],'descend'); %based on IC number %%% FIX ASAP! !! TEMP MD!
         I = I(1);
         num_iters = 1;
-    else                              % First iter only (For testing Purposes) 
+    else                              % First iter only (For testing Purposes)
         num_iters =1;
         if strcmp(Data_volume,'bestiter'), I = ICA.best_iter.index; else, I = 1; end
     end
 
-  
+
     if (isfield(rc,'timing') && rc.timing); Timing.load = toc(t_l); end % End of Load Timing
 
 

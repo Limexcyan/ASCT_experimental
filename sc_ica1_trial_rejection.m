@@ -4,7 +4,7 @@
 
 clear data
 data.fsample = ICADATA.fsample;
-
+aą
 if ar.ica_ic2screen > 0
     if size(ICADATA.ICA.best_iter.IC_sig,1) > ar.ica_ic2screen  % up to 10 first ICs are taken into account when clasifying artifacts
         data.trial = { ICADATA.ICA.best_iter.IC_sig( 1:ar.ica_ic2screen, : ) };
