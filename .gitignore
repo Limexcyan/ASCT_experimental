@@ -1,1 +1,6 @@
 /class_models/
+.DC_Store/
+
+
+# Generated EEG test fixtures
+tests/fixtures/
