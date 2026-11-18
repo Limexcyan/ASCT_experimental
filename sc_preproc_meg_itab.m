@@ -12,10 +12,19 @@ cfg.channel = 'all';
 cfg.dataset = infile;
 % hdr = ft_read_header(infile);
 
-if strcmp(rc.dataFormat, 'itab-sim') | strcmp(rc.dataFormat, 'syn-sim')
-    cprintf('magenta', '\nWARNING WARNING WARNING; running simulation in a DEV mode. parameters set for a specific SIM file\n\n');
+if strcmp(rc.dataFormat, 'itab-sim') || strcmp(rc.dataFormat, 'syn-sim')
+    % The simulation .mat stores only a sensor signal, not a MEG header.
+    % Use an explicitly configured recording as a sensor/header template.
     infile2 = infile;
-    infile = '/mnt/devv/Exp/SIM/ITAB-sim/0_raw/mrtlne88_0101.raw';
+    if isfield(rc,'simTemplateDataset') && ~isempty(rc.simTemplateDataset)
+        infile = rc.simTemplateDataset;
+    else
+        % Legacy default for backwards compatibility when available.
+        infile = '/mnt/devv/Exp/SIM/ITAB-sim/0_raw/mrtlne88_0101.raw';
+    end
+    assert(isfile(infile),'ASCT:MissingSimTemplate', ...
+        'Specify an existing rc.simTemplateDataset for simulated MEG input');
+    cfg.dataset = infile;
 end
 
 
@@ -82,15 +91,20 @@ switch rc.dataFormat
 
         %%%%%%% Warning! Data Sim is non existent where only ITAB format (not
         %%% itab-sim) is considered --> Dragged into switch By MD
-        if length(data_meg.trial{1})>length(data_sim)
-            cprintf('magenta', '\nWARNING: sim signal too short. cutting accordingly\n\n');    
+        if size(data_meg.trial{1},2)>size(data_sim,2)
+            cprintf('magenta', '\nWARNING: sim signal shorter than template. Trimming template accordingly\n\n');
             cfg = [];
-            cfg.continuous         = 'yes';
-            cfg.latency = [0 (length(data_sim)/data_meg.fsample)-0.289]; %fixed cut
-            data_meg = ft_selectdata(cfg, data_meg);
+            cfg.continuous = 'yes';
+            cfg.latency = [0 (size(data_sim,2)-1)/data_meg.fsample];
+            data_meg = ft_selectdata(cfg,data_meg);
         end
 
-        data_meg.trial{1} = data_sim(:,1:size(data_meg.trial{1},2));  % replacing with simulated data
+        assert(size(data_sim,1)==size(data_meg.trial{1},1), ...
+            'ASCT:SimulationChannelMismatch', ...
+            'Simulated signals must match the template MEG channel count/order');
+        assert(size(data_sim,2)>=size(data_meg.trial{1},2), ...
+            'ASCT:SimulationTooShort','Simulation shorter than available template data');
+        data_meg.trial{1} = data_sim(:,1:size(data_meg.trial{1},2));
         %%%%%%
 end
 %%% filtering (applied to all structures the same maner

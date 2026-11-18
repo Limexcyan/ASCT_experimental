@@ -240,6 +240,12 @@ for dcs = 1:length(testConditions)
                 txt_to_disp = ['condition: ' num2str(cnd{1}) '; no of ROIs: ' mv.chans '; trials: ' num2str(size(sigroi_unc.(cnd{1}).signal,2) / sigroi_unc.(cnd{1}).trialen) '; trial len: '  num2str(mv.recl) ];
                 disp(txt_to_disp);
 
+                % Optional multiverse changes; preserve legacy ASCT when off.
+                if (isfield(mv,'removeERP') && mv.removeERP) || ...
+                        (isfield(mv,'orderSelection') && strcmp(mv.orderSelection,'aic'))
+                    [mltin,mv] = asct_multiverse_prepare_mltin(mltin,mv);
+                    save(multarinfile2, 'mltin');
+                end
                 multar1m(mv);   % multar UNC
 
             end
@@ -266,13 +272,19 @@ for dcs = 1:length(testConditions)
                 txt_to_disp = ['condition: ' num2str(cnd{1}) '; no of ROIs: ' mv.chans '; trials: ' num2str(size(sigroi_lc.(cnd{1}).signal,2) / sigroi_lc.(cnd{1}).trialen) '; trial len: '  num2str(mv.recl) ];
                 disp(txt_to_disp);
 
+                % Optional multiverse changes; preserve legacy ASCT when off.
+                if (isfield(mv,'removeERP') && mv.removeERP) || ...
+                        (isfield(mv,'orderSelection') && strcmp(mv.orderSelection,'aic'))
+                    [mltin,mv] = asct_multiverse_prepare_mltin(mltin,mv);
+                    save(multarinfile2, 'mltin');
+                end
                 multar1m(mv);   % multar LC
 
                 if rc.simStats % preparing simulation statistics
                     disp('preparing statistics data');
                     mvprev = mv; % retain original mv
-                    multarinstatfile = strrep(multarinfile, '_mltin.mat', '_stat_mltin.mat');
-                    copyfile (multarinfile, multarinstatfile);
+                    multarinstatfile = strrep(multarinfile2, '_mltin.mat', '_stat_mltin.mat');
+                    copyfile (multarinfile2, multarinstatfile);
                     mv.fname = multarinstatfile;
                     mv.bootst = 1;
                     mv.baseln = 1;
