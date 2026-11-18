@@ -8,7 +8,7 @@ function sc_arstat(rc, con)
 %                         <con.conName>/lc/DC*/*_mltout.mat
 %   Discovers all DC* folders automatically.
 %   Output: <rc.expFolder>/<rc.analysisName>/8_CONN/<con.conName>/
-%               AR_summry.csv
+%               AR_summary.csv
 
 
 % fprintf('rc.expFolder    = %s\n', rc.expFolder);
@@ -134,7 +134,17 @@ for i = 1:nC
     % underscore would truncate the dataset ID incorrectly. Match against
     % known baseline ROI dataset stems for this DC instead.
     base = string(regexprep(covFiles(i).name, '_mltout\.mat$', ''));
-    candidates = find(dcT == dcC(i) & startsWith(base, subT + "_"));
+    % startsWith(base, patternArray) returns ONE scalar indicating whether
+    % ANY pattern matches. Pairing it with a vector of DC labels would
+    % incorrectly select the first subject (typically A1) for every file.
+    % Compare each ROI stem individually to preserve the correct subject ID.
+    withinDC = find(dcT == dcC(i) & keepT);
+    candidates = zeros(0,1);
+    for ci = reshape(withinDC,1,[])
+        if startsWith(base, subT(ci) + "_")
+            candidates(end+1,1) = ci; %#ok<AGROW>
+        end
+    end
     if ~isempty(candidates)
         [~,longest] = max(strlength(subT(candidates)));
         subC(i) = subT(candidates(longest));
@@ -186,7 +196,17 @@ T = outerjoin(B, A, 'Keys', {'Subject','DC'}, ...
 T = T(:, {'Subject','Window','DC','nTrials','avgVr'});
 T = sortrows(T, {'Window','Subject','DC'});
 
-T.avgVr = round(T.avgVr, 2);   % 3 decimal places
+% Preserve full precision in CSV: raw ROI residual variance may be
+% much smaller than 0.005, so rounding to two decimals would make it 0.
+if nnz(keepC) ~= nC
+    warning('ASCT:ARSummary:MissingCovariance', ...
+        'Only %d/%d connectivity files contain a valid ARs.V matrix.', nnz(keepC), nC);
+end
+if height(T) ~= nnz(keepC)
+    warning('ASCT:ARSummary:UnexpectedRows', ...
+        'Unexpected report row count: %d rows for %d valid covariance files.', ...
+        height(T), nnz(keepC));
+end
 disp(T);
 
 writetable(T, outCSV);

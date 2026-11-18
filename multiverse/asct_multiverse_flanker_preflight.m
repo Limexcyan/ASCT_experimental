@@ -83,9 +83,11 @@ for m=1:numel(modalities)
 end
 
 % Within-subject statistics assume one corresponding observation per ID/condition.
-wantStats=isfield(mv,'runStatistics') && logical(mv.runStatistics);
+%% Always require paired subjects for the Flanker within-subject STEP10 pilot.
+% Previously this check only ran with mv.runStatistics=true; a STEP10-only
+% multiverse could silently process an unpaired subset of participants.
 within=~isfield(setup.con,'testType') || strcmpi(setup.con.testType,'within');
-if wantStats && within
+if within
     assert(isfield(setup.con,'contrast2test') && iscell(setup.con.contrast2test), ...
         'ASCT:Flanker:MissingContrast','Set con.contrast2test');
     for m=1:numel(modalities)
