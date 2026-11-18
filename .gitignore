@@ -4,3 +4,6 @@
 
 # Generated EEG test fixtures
 tests/fixtures/
+
+# Reproducible two-trial multiverse smoke outputs
+/multiverse_smoke_results/

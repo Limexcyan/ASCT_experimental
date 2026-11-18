@@ -1,7 +1,7 @@
 name: ASCT mock EEG tests
 on:
   push:
-    branches: [main]
+    branches: [main, feature/multiverse_analysis]
   pull_request:
   workflow_dispatch:
 jobs:
@@ -16,3 +16,25 @@ jobs:
           source-folder: .
           select-by-folder: tests
           test-results-junit: test-results.xml
+      - name: Upload JUnit test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: matlab-test-results
+          path: test-results.xml
+          if-no-files-found: warn
+      - name: Run 2-trial multiverse oracle smoke
+        uses: matlab-actions/run-command@v2
+        with:
+          command: addpath('multiverse'); asct_multiverse_smoke('multiverse_smoke_results')
+      - name: Upload two-trial smoke results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: asct-multiverse-2trials
+          path: |
+            multiverse_smoke_results/multiverse_manifest.csv
+            multiverse_smoke_results/smoke_metrics.csv
+            multiverse_smoke_results/multiverse_results.mat
+            multiverse_smoke_results/smoke_settings.mat
+          if-no-files-found: warn

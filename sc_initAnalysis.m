@@ -137,7 +137,7 @@ if ~isfield(ica, 'ica1_ic_to_screen'); ica.ica1_ic_to_screen = 25; end
 if ~exist('loc'); loc=[]; end
 if ~isfield(loc, 'method'); loc.method = 'mne'; end
 if ~isfield(loc, 'recon'); loc.recon = 'pca'; end
-if ~isfield(loc, 'depthWeight'); loc.deep_weight = 0; end
+if ~isfield(loc, 'deep_weight'); loc.deep_weight = 0; end
 if ~isfield(loc, 'force_lf'); loc.force_lf = 1; end
 if ~isfield(loc, 'depthWeight'); loc.depthWeight = 0.5; end
 if ~isfield(loc, 'reslice'); loc.reslice = 0; end
@@ -156,7 +156,7 @@ if ~isfield(con, 'varNorm'); con.varNorm = 1; end       % var divide
 if ~isfield(con, 'winshf'); con.winshf = 0; end
 if ~isfield(con, 'winnum'); con.winnum = 1; end
 if ~isfield(con, 'winlen'); con.winlen = []; end
-if ~isfield(con, 'useRange'); con.userange = 0; end
+if ~isfield(con, 'useRange'); con.useRange = 0; end
 
 if con.sensorLevel; con.lc = 0; con.unc = 1; end % lc not relevant for source conn
 
