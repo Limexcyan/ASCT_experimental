@@ -20,6 +20,8 @@ be run on fossil with actual ICA2 and FieldTrip before declaring M1 integrated.
 
 Note: changing `loc.lambda` has **no effect** under `loc.norm='cov'` and is
 rejected as an inert factor. Use an `includeFcn` to prune redundant combos.
+A `cov` combination may retain `loc.lambda` *equal to the original ExSetup*
+without being considered a change; a different lambda value is rejected.
 
 ```matlab
 mv.factors.loc.norm={'lambda','cov'};

@@ -28,7 +28,7 @@ for i=1:numel(specs)
     changedLoc=struct();
     if isfield(s.changes,'loc'), changedLoc=s.changes.loc; end
     % Validate effective settings while planning, before any files are written.
-    p.loc=asct_multiverse_validate_localization(p.loc,changedLoc,false);
+    p.loc=asct_multiverse_validate_localization(p.loc,changedLoc,false,base.loc);
     keys{i}=stageKeys(p,mv.sourceAnalysis);
     plan(i).id=s.id;
     plan(i).analysisName=[char(base.rc.analysisName) '__' s.id];

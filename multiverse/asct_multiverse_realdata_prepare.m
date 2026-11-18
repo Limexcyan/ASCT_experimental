@@ -32,7 +32,7 @@ changedLoc=struct();
 if isfield(spec.changes,'loc'), changedLoc=spec.changes.loc; end
 strict=false;
 if isfield(mv,'strictLocalization'), strict=mv.strictLocalization; end
-runsetup.loc=asct_multiverse_validate_localization(runsetup.loc,changedLoc,strict && spec.startStep<=8);
+runsetup.loc=asct_multiverse_validate_localization(runsetup.loc,changedLoc,strict && spec.startStep<=8,base.loc);
 if spec.startStep<=9
     % Neither localization nor reconstruction may modify shared MRI models.
     runsetup.rc.multiverseIsolatedLeadfield=true;

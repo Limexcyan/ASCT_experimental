@@ -1,10 +1,16 @@
-function loc = asct_multiverse_validate_localization(loc,changed,strict)
+function loc = asct_multiverse_validate_localization(loc,changed,strict,baseline)
 %ASCT_MULTIVERSE_VALIDATE_LOCALIZATION Validate effective STEP8 MNE settings.
 % Only parameters actually used by sc_sourceLocalize are supported.
 % strict=true enforces complete prerequisites for a real STEP8 run; false
 % keeps existing mock-based M1 workflows backward compatible.
 if nargin<2 || isempty(changed), changed=struct(); end
 if nargin<3, strict=false; end
+% A factor level equal to the original ExSetup is not a parameter change.
+% This matters when norm and lambda share a Cartesian grid: the cov row
+% may retain the baseline lambda without claiming it affects the model.
+if nargin<4 || isempty(baseline), baseline=struct(); end
+assert(isstruct(baseline) && isscalar(baseline), ...
+    'ASCT:M2:InvalidLocalization','baseline must be a scalar struct');
 assert(isstruct(loc) && isscalar(loc) && isstruct(changed) && isscalar(changed), ...
     'ASCT:M2:InvalidLocalization','Localization settings must be scalar structs');
 assert(islogical(strict) && isscalar(strict), ...
@@ -38,8 +44,12 @@ if strcmp(loc.norm,'lambda')
     assert(isfield(loc,'lambda') && isScalarReal(loc.lambda) && loc.lambda>0, ...
         'ASCT:M2:MissingLambda','loc.norm=lambda requires loc.lambda>0');
 elseif isfield(changed,'lambda')
-    error('ASCT:M2:InertFactor', ...
-        'loc.lambda has no effect when loc.norm=cov. Filter this combination with includeFcn.');
+    % Reject an inert *change*, not a repeated baseline factor level.
+    % Without baseline provenance, reject conservatively (legacy behavior).
+    if ~isfield(baseline,'lambda') || ~isequaln(loc.lambda,baseline.lambda)
+        error('ASCT:M2:InertFactor', ...
+            'loc.lambda has no effect when loc.norm=cov. Filter this combination with includeFcn.');
+    end
 end
 if isfield(loc,'force_lf')
     assert(isScalarReal(loc.force_lf) || (islogical(loc.force_lf) && isscalar(loc.force_lf)), ...

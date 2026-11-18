@@ -38,6 +38,13 @@ classdef TestMultiverseM2 < matlab.unittest.TestCase
             x=l;x.lambda=0.1;
             tc.verifyError(@()asct_multiverse_validate_localization(x,struct('lambda',0.1),true), ...
                 'ASCT:M2:InertFactor');
+            % Same level as original ExSetup is not an effective change.
+            unchanged=asct_multiverse_validate_localization(x, ...
+                struct('lambda',0.1),true,x);
+            tc.verifyEqual(unchanged.lambda,0.1);
+            changed=x;changed.lambda=0.2;
+            tc.verifyError(@()asct_multiverse_validate_localization(changed, ...
+                struct('lambda',0.2),true,x), 'ASCT:M2:InertFactor');
             x=l;x=rmfield(x,'noiseLev');
             tc.verifyError(@()asct_multiverse_validate_localization(x,struct(),true), ...
                 'ASCT:M2:MissingNoiseLevel');
@@ -57,6 +64,13 @@ classdef TestMultiverseM2 < matlab.unittest.TestCase
             [plan,specs]=asct_multiverse_plan(p,mv);
             tc.verifyNumElements(specs,3);
             tc.verifyEqual([plan.requiredStartStep],[8 8 8]);
+            % The retained cov row must also pass runner preparation,
+            % not just the read-only plan.
+            covIdx=find(arrayfun(@(s)strcmp(s.changes.loc.norm,'cov'),specs));
+            tc.verifyNumElements(covIdx,1);
+            q=asct_multiverse_realdata_prepare(p,mv,specs(covIdx));
+            tc.verifyEqual(q.loc.norm,'cov');
+            tc.verifyEqual(q.loc.lambda,p.loc.lambda);
         end
         function stage8IsolatesAndForcesLeadfield(tc)
             [p,~]=fixture(tc);
