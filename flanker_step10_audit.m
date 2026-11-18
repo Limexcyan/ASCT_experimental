@@ -1,7 +1,11 @@
-function report = flanker_step10_audit(expFolder, outputName, sourceAnalysis, conName, saveReports)
+function report = flanker_step10_audit(expFolder, outputName, sourceAnalysis, conName, saveReports, recoverManifest)
 %FLANKER_STEP10_AUDIT Verify REAL ASCT STEP10 multiverse outputs against ROI.
 % Reads existing outputs; never calls mmultar / STEP10 / STEP11.
 % Optionally writes only into <outputName>__multiverse/step10_audit/.
+% recoverManifest (6th arg, default false) is a non-destructive fallback
+% for an overwritten/stale run manifest. It rebuilds the RUN LIST from
+% individually saved multiverse_setup.mat files. Only a FULL file audit
+% can validate the recovered run list. Original manifests stay untouched.
 % Examples:
 %   flanker_step10_audit
 %   flanker_step10_audit('/mnt/devv/Exp/LG/wprawki/flanker', ...
@@ -15,35 +19,42 @@ if nargin<2 || isempty(outputName), outputName='ana1_mv_flanker_step10_v2'; end
 if nargin<3 || isempty(sourceAnalysis), sourceAnalysis='ana1'; end
 if nargin<4 || isempty(conName), conName='FPN_300_600'; end
 if nargin<5 || isempty(saveReports), saveReports=true; end
+if nargin<6 || isempty(recoverManifest), recoverManifest=false; end
+assert(islogical(recoverManifest) && isscalar(recoverManifest), ...
+    'ASCT:Audit:RecoveryFlag', 'recoverManifest must be logical scalar');
 expFolder=char(expFolder); outputName=char(outputName);
 sourceAnalysis=char(sourceAnalysis); conName=char(conName);
 % ERP helper lives in the ASCT feature branch's multiverse folder.
 addpath(fullfile(fileparts(mfilename('fullpath')),'multiverse'));
 root=fullfile(expFolder,[outputName '__multiverse']);
 manifestPath=fullfile(root,'realdata_manifest.csv');
-assert(isfile(manifestPath),'ASCT:Audit:MissingManifest', ...
-    'Cannot find manifest: %s',manifestPath);
-% MATLAB readtable can mistake a short, all-text CSV's first row for data.
-% Force header interpretation; do not rely on detectImportOptions heuristics.
-manifest=readtable(manifestPath, 'FileType','text','Delimiter',',', ...
-    'ReadVariableNames',true,'VariableNamingRule','preserve', ...
-    'TextType','string');
-required={'configId','analysisName','connectivityStatus'};
-if ~all(ismember(required,manifest.Properties.VariableNames))
-    observed=strjoin(string(manifest.Properties.VariableNames),', ');
-    fid=fopen(manifestPath,'r');
-    firstLine='(unavailable)';
-    if fid>=0
-        firstLine=fgetl(fid);
-        fclose(fid);
+if recoverManifest
+    % A blocked second run can overwrite the original manifest, leaving
+    % only the failed first variant and blank/pending remaining rows.
+    % Never forge "passed" statuses or overwrite the execution record.
+    manifest=reconstructRuns(expFolder,outputName,sourceAnalysis,conName,manifestPath);
+    fprintf('RECOVERY MODE: auditing %d saved variant folders; original manifest UNCHANGED.\n',height(manifest));
+else
+    assert(isfile(manifestPath),'ASCT:Audit:MissingManifest', ...
+        'Cannot find manifest: %s',manifestPath);
+    % Force CSV header interpretation for short text-only manifests.
+    manifest=readtable(manifestPath,'FileType','text','Delimiter',',', ...
+        'ReadVariableNames',true,'VariableNamingRule','preserve', ...
+        'TextType','string');
+    required={'configId','analysisName','connectivityStatus'};
+    if ~all(ismember(required,manifest.Properties.VariableNames))
+        observed=strjoin(string(manifest.Properties.VariableNames),', ');
+        fid=fopen(manifestPath,'r');
+        firstLine='(unavailable)';
+        if fid>=0, firstLine=fgetl(fid); fclose(fid); end
+        error('ASCT:Audit:ManifestColumns', ...
+            'Manifest missing columns. Observed: [%s]; first line: %s', ...
+            char(observed),char(string(firstLine)));
     end
-    error('ASCT:Audit:ManifestColumns', ...
-        'Manifest missing required columns. Observed: [%s]; CSV first line: %s', ...
-        char(observed),char(string(firstLine)));
+    assert(height(manifest)>0,'ASCT:Audit:EmptyManifest','Empty manifest');
+    assert(all(strcmpi(string(manifest.connectivityStatus),'passed')), ...
+        'ASCT:Audit:IncompleteRun','Some STEP10 runs have not passed');
 end
-assert(height(manifest)>0,'ASCT:Audit:EmptyManifest','Empty manifest');
-assert(all(strcmpi(string(manifest.connectivityStatus),'passed')), ...
-    'ASCT:Audit:IncompleteRun','Some STEP10 runs have not passed');
 assert(numel(unique(string(manifest.analysisName)))==height(manifest), ...
     'ASCT:Audit:DuplicateRun','Duplicate analysisName in manifest');
 
@@ -332,15 +343,76 @@ else
         pairwise.(f{1})=double(col);
     end
 end
-report=struct('perFile',perFile,'pairwise',pairwise,'configuration',cfg);
+report=struct('perFile',perFile,'pairwise',pairwise,'configuration',cfg, ...
+    'recoveredFromSavedSetups',logical(recoverManifest), ...
+    'originalManifestPath',string(manifestPath));
 if saveReports
     auditFolder=fullfile(root,'step10_audit');
     if ~isfolder(auditFolder), mkdir(auditFolder); end
     writetable(perFile,fullfile(auditFolder,'step10_per_file.csv'));
     writetable(pairwise,fullfile(auditFolder,'step10_pairwise_ndtf.csv'));
     save(fullfile(auditFolder,'step10_audit.mat'),'report');
+    if recoverManifest
+        recovered=manifest;
+        recovered.connectivityStatus(:)="audited_from_files";
+        writetable(recovered,fullfile(auditFolder,'recovered_manifest_audited.csv'));
+        fprintf('Original execution manifest was NOT changed: %s\n',manifestPath);
+    end
     fprintf('Saved audit CSV/MAT in %s\n',auditFolder);
 end
 fprintf('STEP10 AUDIT PASSED: %d variants, %d verified outputs, %d one-factor comparisons\n', ...
     numel(cfg),height(perFile),height(pairwise));
+end
+
+function manifest=reconstructRuns(expFolder,outputName,sourceAnalysis,conName,manifestPath)
+% Rebuild candidate run list only from individual, independently saved
+% run metadata. This is NOT a reconstruction of the execution history.
+expectedCount=NaN;
+if isfile(manifestPath)
+    previous=readtable(manifestPath,'FileType','text','Delimiter',',', ...
+        'ReadVariableNames',true,'VariableNamingRule','preserve','TextType','string');
+    expectedCount=height(previous);
+end
+candidates=dir(fullfile(expFolder,[outputName '__mv_*']));
+candidates=candidates([candidates.isdir]);
+pattern=['^' regexptranslate('escape',outputName) '__mv_[0-9]{4}$'];
+valid=false(numel(candidates),1);
+for i=1:numel(candidates)
+    valid(i)=~isempty(regexp(candidates(i).name,pattern,'once'));
+end
+candidates=candidates(valid);
+names=sort(string({candidates.name}));
+assert(~isempty(names),'ASCT:Audit:RecoveryNoRuns', ...
+    'No variant directories for %s',outputName);
+if isfinite(expectedCount)
+    assert(numel(names)==expectedCount, 'ASCT:Audit:RecoveryCount', ...
+        'Found %d variant folders, but damaged manifest expects %d runs', ...
+        numel(names),expectedCount);
+end
+configId=strings(numel(names),1);
+analysisName=strings(numel(names),1);
+connectivityStatus=repmat("unverified_from_saved_setup",numel(names),1);
+for i=1:numel(names)
+    target=string(sprintf('%s__mv_%04d',outputName,i));
+    assert(names(i)==target,'ASCT:Audit:RecoveryGap', ...
+        'Nonconsecutive variant directories: expected %s, found %s', ...
+        char(target),char(names(i)));
+    configId(i)=string(sprintf('mv_%04d',i));
+    analysisName(i)=names(i);
+    setupFile=fullfile(expFolder,char(names(i)),'multiverse_setup.mat');
+    assert(isfile(setupFile),'ASCT:Audit:RecoveryMissingSetup', ...
+        'Missing original configuration file: %s',setupFile);
+    M=load(setupFile,'runsetup','spec');
+    assert(isfield(M,'runsetup') && isfield(M,'spec') && ...
+        isfield(M.runsetup,'rc') && isfield(M.runsetup.rc,'analysisName') && ...
+        isfield(M.runsetup.rc,'sigroiName') && isfield(M.runsetup,'con') && ...
+        isfield(M.runsetup.con,'conName') && isfield(M.spec,'id') && ...
+        strcmp(char(M.spec.id),char(configId(i))) && ...
+        strcmp(char(M.runsetup.rc.analysisName),char(analysisName(i))) && ...
+        strcmp(char(M.runsetup.rc.sigroiName),sourceAnalysis) && ...
+        strcmp(char(M.runsetup.con.conName),conName), ...
+        'ASCT:Audit:RecoverySetupMismatch', ...
+        'Saved variant metadata is inconsistent: %s',setupFile);
+end
+manifest=table(configId,analysisName,connectivityStatus);
 end

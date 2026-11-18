@@ -30,6 +30,40 @@ classdef TestFlankerStep10Priority1 < matlab.unittest.TestCase
             tc.verifyEqual(out.pairwise.changedFactor(1),"varNorm");
             tc.verifyGreaterThan(out.pairwise.maxAbsNDTF(1),0);
         end
+        function recoversAuditAfterBlockedRerun(tc)
+            folder=fixture(tc);
+            path=fullfile(folder,'case_v2__multiverse','realdata_manifest.csv');
+            damaged=readtable(path,'TextType','string');
+            damaged.connectivityStatus(1)="failed";
+            damaged.analysisName(2)="";
+            damaged.connectivityStatus(2)="pending";
+            writetable(damaged,path);
+            before=fileread(path);
+            tc.verifyError(@()flanker_step10_audit(folder,'case_v2', ...
+                'ana1','conn',false),'ASCT:Audit:IncompleteRun');
+            R=flanker_step10_audit(folder,'case_v2','ana1','conn',true,true);
+            tc.verifyEqual(height(R.perFile),8);
+            tc.verifyTrue(R.recoveredFromSavedSetups);
+            tc.verifyEqual(fileread(path),before);
+            tc.verifyTrue(isfile(fullfile(folder,'case_v2__multiverse', ...
+                'step10_audit','recovered_manifest_audited.csv')));
+        end
+        function recoveryStillRejectsCorruptedNDTF(tc)
+            folder=fixture(tc);
+            path=fullfile(folder,'case_v2__multiverse','realdata_manifest.csv');
+            damaged=readtable(path,'TextType','string');
+            damaged.connectivityStatus(1)="failed";
+            damaged.analysisName(2)="";
+            writetable(damaged,path);
+            target=fullfile(folder,'case_v2__mv_0001','8_CONN','conn', ...
+                'lc','DC1','A1_FLA_1_FLANK_INCO_mltout.mat');
+            O=load(target);
+            NDTF=O.NDTF; NDTF(1,2,1)=NaN; %#ok<NASGU>
+            ARs=O.ARs; mv=O.mv; %#ok<NASGU>
+            save(target,'NDTF','ARs','mv');
+            tc.verifyError(@()flanker_step10_audit(folder,'case_v2', ...
+                'ana1','conn',false,true),'ASCT:Audit:InvalidNDTF');
+        end
         function detectsTamperedMLTin(tc)
             folder=fixture(tc);
             path=fullfile(folder,'case_v2__mv_0002','8_CONN','conn', ...

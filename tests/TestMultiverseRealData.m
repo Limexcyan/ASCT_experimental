@@ -80,6 +80,37 @@ classdef TestMultiverseRealData < matlab.unittest.TestCase
             testCase.verifyTrue(isfile(fullfile(folder,'experiment__mv_0001','multiverse_setup.mat')));
             testCase.verifyTrue(isfile(fullfile(folder,'experiment__multiverse','realdata_results.mat')));
         end
+        function refusedRerunPreservesSuccessfulManifest(testCase)
+            [p,folder]=fixture(testCase);
+            mv=baseOptions();
+            mv.factors.con.varNorm=[0 1];
+            mv.dryRun=false;
+            asct_multiverse_realdata(p,mv,@(~,~,~)struct('stub',true));
+            root=fullfile(folder,'experiment__multiverse');
+            manifest=fullfile(root,'realdata_manifest.csv');
+            snapshot=fileread(manifest);
+            saved=load(fullfile(root,'realdata_results.mat'));
+            testCase.verifyError(@()asct_multiverse_realdata(p,mv, ...
+                @(~,~,~)error('ASCT:Test:UnexpectedRunner','Runner must not start')), ...
+                'ASCT:RealMultiverse:OutputExists');
+            testCase.verifyEqual(fileread(manifest),snapshot);
+            current=load(fullfile(root,'realdata_results.mat'));
+            testCase.verifyEqual({current.results.status},{saved.results.status});
+            testCase.verifyTrue(all(strcmp({current.results.connectivityStatus},'passed')));
+        end
+        function dryRunCannotOverwriteFinishedManifest(testCase)
+            [p,folder]=fixture(testCase);
+            mv=baseOptions();
+            mv.factors.con.varNorm=[0 1];
+            mv.dryRun=false;
+            asct_multiverse_realdata(p,mv,@(~,~,~)struct('stub',true));
+            manifest=fullfile(folder,'experiment__multiverse','realdata_manifest.csv');
+            snapshot=fileread(manifest);
+            mv.dryRun=true;
+            testCase.verifyError(@()asct_multiverse_realdata(p,mv), ...
+                'ASCT:RealMultiverse:OutputExists');
+            testCase.verifyEqual(fileread(manifest),snapshot);
+        end
         function statisticsPlanHasSeparateStatuses(testCase)
             [p,folder]=fixture(testCase);
             mv=baseOptions();

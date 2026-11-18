@@ -51,6 +51,29 @@ prepared=cell(numel(specs),1);
 for i=1:numel(specs)
     prepared{i}=asct_multiverse_realdata_prepare(setup,mv,specs(i));
 end
+% Important: fail BEFORE writing the shared manifest or MAT results.
+% Otherwise a blocked rerun can erase the prior successful execution log.
+if ~mv.allowOverwrite
+    for i=1:numel(prepared)
+        target=fullfile(char(prepared{i}.rc.expFolder), ...
+            char(prepared{i}.rc.analysisName));
+        if isfolder(target)
+            error('ASCT:RealMultiverse:OutputExists', ...
+                'Output directory %s already exists. Refusing to overwrite. Existing manifest unchanged.',target);
+        end
+    end
+    previousManifest=fullfile(root,'realdata_manifest.csv');
+    if isfile(previousManifest)
+        old=readtable(previousManifest,'FileType','text','Delimiter',',', ...
+            'ReadVariableNames',true,'VariableNamingRule','preserve', ...
+            'TextType','string');
+        if ~ismember('connectivityStatus',old.Properties.VariableNames) || ...
+                ~all(strcmpi(string(old.connectivityStatus),'planned'))
+            error('ASCT:RealMultiverse:ManifestExists', ...
+                'Previous execution manifest exists: %s. Existing manifest unchanged.',previousManifest);
+        end
+    end
+end
 if ~isfolder(root), mkdir(root); end
 results=repmat(struct('id','','startStep',0,'analysisName','', ...
     'status','','connectivityStatus','pending','statisticsStatus','skipped', ...
