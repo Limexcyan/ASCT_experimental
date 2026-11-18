@@ -3,8 +3,10 @@ function sc_8_CONN(rc, seg, design, loc, mv, begId, endId)
 %% loadfiles
 
 currentSIGROIfolder = rc.analysisFolder;
-if isfield(rc, 'sigroiName')   %in case the data to conn are taken from different dir
-    currentSIGROIfolder = fullfile(currentSIGROIfolder, rc.analysisName, rc.sigroiName);
+if isfield(rc, 'sigroiName') && ~isempty(rc.sigroiName)
+    % Reuse STEP9 signals from an existing analysis when varying only STEP10.
+    % The previous path accidentally duplicated rc.analysisName.
+    currentSIGROIfolder = fullfile(rc.expFolder, rc.sigroiName);
 end
 
 mv.ntrls = [];       % no of trials - auto determinead
