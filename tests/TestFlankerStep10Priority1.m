@@ -33,7 +33,9 @@ classdef TestFlankerStep10Priority1 < matlab.unittest.TestCase
         function recoversAuditAfterBlockedRerun(tc)
             folder=fixture(tc);
             path=fullfile(folder,'case_v2__multiverse','realdata_manifest.csv');
-            damaged=readtable(path,'TextType','string');
+            damaged=readtable(path,'FileType','text','Delimiter',',', ...
+                'ReadVariableNames',true,'VariableNamingRule','preserve', ...
+                'TextType','string');
             damaged.connectivityStatus(1)="failed";
             damaged.analysisName(2)="";
             damaged.connectivityStatus(2)="pending";
@@ -51,7 +53,9 @@ classdef TestFlankerStep10Priority1 < matlab.unittest.TestCase
         function recoveryStillRejectsCorruptedNDTF(tc)
             folder=fixture(tc);
             path=fullfile(folder,'case_v2__multiverse','realdata_manifest.csv');
-            damaged=readtable(path,'TextType','string');
+            damaged=readtable(path,'FileType','text','Delimiter',',', ...
+                'ReadVariableNames',true,'VariableNamingRule','preserve', ...
+                'TextType','string');
             damaged.connectivityStatus(1)="failed";
             damaged.analysisName(2)="";
             writetable(damaged,path);
