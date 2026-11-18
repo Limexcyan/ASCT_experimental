@@ -50,19 +50,20 @@ end
 assert(~isempty(fields), 'ASCT:RealMultiverse:Factors','Specify at least one factor');
 counts=arrayfun(@(f)numel(f.choices), fields);
 nSpecs=prod(double(counts));
-assert(isfinite(nSpecs) && nSpecs<=mv.maxRuns && nSpecs<=flintmax, ...
-    'ASCT:RealMultiverse:TooManyRuns', ...
-    'Requested %.0f configurations, exceeding maxRuns=%d. Reduce the grid or raise the limit.', ...
-    nSpecs,mv.maxRuns);
-if any(strcmp({fields.group},'filter'))
-    startStep=0;
-elseif any(strcmp({fields.group},'loc'))
-    startStep=8;
-elseif any(strcmp({fields.group},'con') & strcmp({fields.name},'decimate'))
-    startStep=9;
+% The optional includeFcn prunes invalid combinations after expansion.
+% Cap pre-pruning expansion to prevent accidental memory blowups.
+if isfield(mv,'includeFcn') && ~isempty(mv.includeFcn)
+    assert(isa(mv.includeFcn,'function_handle'), ...
+        'ASCT:RealMultiverse:InvalidFilter','includeFcn must be a function handle');
+    assert(isfinite(nSpecs) && nSpecs<=100000 && nSpecs<=flintmax, ...
+        'ASCT:RealMultiverse:TooManyRuns','Grid too large to filter safely');
 else
-    startStep=10;
+    assert(isfinite(nSpecs) && nSpecs<=mv.maxRuns && nSpecs<=flintmax, ...
+        'ASCT:RealMultiverse:TooManyRuns', ...
+        'Requested %.0f configurations, exceeding maxRuns=%d. Reduce the grid or raise the limit.', ...
+        nSpecs,mv.maxRuns);
 end
+[startStep,~]=asct_multiverse_dependencies(mv.factors);
 specs=repmat(struct('id','','startStep',startStep,'changes',struct()),nSpecs,1);
 for idx=1:nSpecs
     changes=struct();
@@ -74,5 +75,20 @@ for idx=1:nSpecs
     end
     specs(idx).id=sprintf('mv_%04d',idx);
     specs(idx).changes=changes;
+end
+if isfield(mv,'includeFcn') && ~isempty(mv.includeFcn)
+    keep=false(numel(specs),1);
+    for idx=1:numel(specs)
+        accepted=mv.includeFcn(specs(idx).changes);
+        assert(islogical(accepted) && isscalar(accepted), ...
+            'ASCT:RealMultiverse:InvalidFilter', ...
+            'includeFcn must return a logical scalar');
+        keep(idx)=accepted;
+    end
+    specs=specs(keep);
+    assert(~isempty(specs),'ASCT:RealMultiverse:EmptyGrid', ...
+        'includeFcn removed all configurations');
+    assert(numel(specs)<=mv.maxRuns,'ASCT:RealMultiverse:TooManyRuns', ...
+        'Filtered grid still exceeds maxRuns');
 end
 end

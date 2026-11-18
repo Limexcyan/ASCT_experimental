@@ -1,7 +1,9 @@
-function runsetup = asct_multiverse_realdata_prepare(base,mv,spec)
+function runsetup = asct_multiverse_realdata_prepare(base,mv,spec,input)
 %ASCT_MULTIVERSE_REALDATA_PREPARE Configure REAL ASCT, reusing safe stages.
 % STEP10 uses existing 7_SOURCEACT; STEP9 uses existing 6_ICA2/icloc;
 % STEP8 uses existing 6_ICA2; STEP0 runs the full preprocessing pipeline.
+% Optional input overrides the upstream source for safe cached stages.
+if nargin<4, input=struct(); end
 required={'rc','chan','filter','seg','ar','ica','loc','con','design'};
 for k=1:numel(required)
     assert(isfield(base,required{k}), 'ASCT:RealMultiverse:MissingSetup', ...
@@ -39,14 +41,18 @@ switch spec.startStep
         inputLabel='raw input (STEP0)';
     case 8
         runsetup.rc.ica2Name=char(mv.sourceAnalysis);
+        if isfield(input,'ica2Name'), runsetup.rc.ica2Name=char(input.ica2Name); end
         inputPath=fullfile(runsetup.rc.expFolder,runsetup.rc.ica2Name,'6_ICA2');
         inputLabel='ICA2 input (STEP8)';
     case 9
         runsetup.rc.iclocName=char(mv.sourceAnalysis);
+        if isfield(input,'iclocName'), runsetup.rc.iclocName=char(input.iclocName); end
+        if isfield(input,'ica2Name'), runsetup.rc.ica2Name=char(input.ica2Name); end
         inputPath=fullfile(runsetup.rc.expFolder,runsetup.rc.iclocName,'7_SOURCEACT','icloc');
         inputLabel='localized IC input (STEP9)';
     case 10
         runsetup.rc.sigroiName=char(mv.sourceAnalysis);
+        if isfield(input,'sigroiName'), runsetup.rc.sigroiName=char(input.sigroiName); end
         inputPath=fullfile(runsetup.rc.expFolder,runsetup.rc.sigroiName,'7_SOURCEACT');
         inputLabel='reconstructed ROI signals (STEP10)';
     otherwise
@@ -54,9 +60,14 @@ switch spec.startStep
 end
 assert(isfolder(inputPath), 'ASCT:RealMultiverse:MissingInput', ...
     'Cannot find %s at %s. Run the prerequisite singleverse stages first.',inputLabel,inputPath);
-% If reconstruction starts at STEP9, both ICA2 and ICLOC come from baseline.
+% If reconstruction starts at STEP9, it needs both ICA2 and ICLOC.
 if spec.startStep==9
-    icaPath=fullfile(runsetup.rc.expFolder,mv.sourceAnalysis,'6_ICA2');
+    if isfield(runsetup.rc,'ica2Name')
+        icaSource=runsetup.rc.ica2Name;
+    else
+        icaSource=runsetup.rc.iclocName;
+    end
+    icaPath=fullfile(runsetup.rc.expFolder,icaSource,'6_ICA2');
     assert(isfolder(icaPath),'ASCT:RealMultiverse:MissingInput', ...
         'STEP9 also requires baseline 6_ICA2: %s',icaPath);
 end

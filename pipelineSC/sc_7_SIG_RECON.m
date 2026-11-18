@@ -12,11 +12,11 @@ else
     iclocloadFolder = fullfile (sourceFolder, 'icloc' );
 end
 
-if isfield(rc,'iclocName')
-    icaloadFolder = fullfile (rc.expFolder, rc.iclocName, '6_ICA2');
-elseif isfield(rc,'ica2Name') && ~isempty(rc.ica2Name)
+if isfield(rc,'ica2Name') && ~isempty(rc.ica2Name)
     % STEP8 multiverse uses baseline ICA2, but the current run's ICLOC.
     icaloadFolder = fullfile(rc.expFolder, rc.ica2Name, '6_ICA2');
+elseif isfield(rc,'iclocName') && ~isempty(rc.iclocName)
+    icaloadFolder = fullfile(rc.expFolder, rc.iclocName, '6_ICA2');
 else
     icaloadFolder = fullfile (rc.analysisFolder, '6_ICA2' );
 end

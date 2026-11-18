@@ -337,3 +337,10 @@ appropriate real-data stability/effect metrics in a subsequent analysis.
   establish that FieldTrip / mmultar works with a particular real recording.
 
 Run configuration tests using `runtests('tests/TestMultiverseRealData.m')`.
+
+## M1 engine (dependency graph / cache / resume)
+
+See [M1_ENGINE.md](M1_ENGINE.md) for the non-destructive real-data runner,
+STEP0/8/9/10 stage reuse, deterministic planning, checkpoint/resume, sparse
+factor grids, and operational result collection. Cache and resume are opt-in;
+this does not change the existing STEP10-only Flanker setup by default.
