@@ -25,6 +25,9 @@ for i=1:numel(groups)
         runsetup.(group).(name)=value;
     end
 end
+if spec.startStep==0
+    runsetup.filter=asct_multiverse_validate_filter(runsetup.filter);
+end
 runsetup.rc.analysisName=[char(base.rc.analysisName) '__' spec.id];
 runsetup.rc.load=spec.startStep;
 runsetup.rc.stop=10; % current implementation is a single-case STEP10 study

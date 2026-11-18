@@ -69,8 +69,9 @@ if rc.useParallel>0
 end
 
 %Loading ICA and ICLOC data
-
-parfor  ds = 1 : length(infile)
+% Limit=0 forces serial execution and prevents an implicit process pool.
+asctWorkerLimit = sc_parallelWorkerLimit(rc);
+parfor (ds = 1:length(infile), asctWorkerLimit)
     load_file_ica2 = infile{ds};
     load_file_icloc = infile_icloc{ds};
 

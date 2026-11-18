@@ -351,3 +351,67 @@ See [M1_ENGINE.md](M1_ENGINE.md) for the non-destructive real-data runner,
 STEP0/8/9/10 stage reuse, deterministic planning, checkpoint/resume, sparse
 factor grids, and operational result collection. Cache and resume are opt-in;
 this does not change the existing STEP10-only Flanker setup by default.
+
+### M3: STEP0 paired bands, metrics plugins, and safe serial source stages
+
+**STEP0 wide/narrow without an HP × LP Cartesian grid**:
+
+```matlab
+mv.sourceAnalysis='ana1';
+mv.outputName='ana1_mv_step0_bands_new';
+mv.maxRuns=2;
+mv.dryRun=true;
+mv.cacheStages=true;
+mv.factors.filter.bandHz={[2 48],[8 12]}; % paired cutoff values, Hz
+```
+
+`bandHz` is a planner convenience, not an ASCT ExSetup field. Each choice
+becomes the effective `filter.HPfreq` / `filter.LPfreq` in saved per-variant
+configurations. `filter.HPord`, `filter.LPord`, `HPtype` and `LPtype` retain
+their ExSetup values. Review filter transition widths and data sampling
+rates before a real STEP0 run. STEP0 reruns the entire pipeline through
+STEP10 and needs raw data; it must never reuse incompatible ICA2/ROI files.
+To prevent accidental parameter combinations, specifying both `bandHz`
+and `HPfreq`/`LPfreq` is rejected. `resampleTo` must be compatible with the
+LP cutoff when set.
+
+**Opt-in metrics as plugins** (no scientific ground truth assumed):
+
+```matlab
+mv.metrics=struct('name','artifacts', ...
+                  'fn',@asct_multiverse_metric_artifacts);
+```
+
+The runner evaluates plugins after completed stage runs and writes
+`multiverse_metric_results.mat` and `multiverse_metric_results.csv`.
+The callback signature is `values=fn(runsetup,spec,context)`, with a scalar
+struct result (e.g. numeric scores, scalar metadata). Plugins are read-only:
+they must not alter stage outputs. A failed callback produces a `failed`
+metric row and does NOT change `realdata_results.mat` or the stage manifest.
+**Metrics are not included in the immutable execution plan**; they can be
+changed and recalculated later without repeating source localization/MVAR:
+
+```matlab
+root=fullfile(expFolder,'ana1_mv_flanker_m1_m2_v1__multiverse');
+plugins=struct('name','artifacts', ...
+               'fn',@asct_multiverse_metric_artifacts);
+T=asct_multiverse_metrics(root,plugins);  % read-only for stage outputs
+```
+
+For simulations with explicitly saved ROI-aligned
+`runsetup.truthConnectivity(target,source)`, a second built-in plugin is
+`@asct_multiverse_metric_truth`. It uses the existing
+`asct_multiverse_evaluate_output` scoring (F1/precision/recall/FPR).
+Do not use this plugin without known ground truth; never interpret file
+counts or uncalibrated NDTF magnitudes as scientific performance.
+
+**Parallel safety**: `sc_6_SOURCE_LOC_ICA` and `sc_7_SIG_RECON` now call
+`sc_parallelWorkerLimit(rc)` and use `parfor (..., limit)`.
+`rc.useParallel=0` forces serial execution without an implicit local pool;
+positive integers allow explicit worker limits. This targets the observed
+32-worker pool teardown segfault but must be confirmed by a Fossil session
+that exits with code 0 and no `Segmentation fault`.
+
+A ready-to-review dry-run setup is `flanker_multiverse_step0_bands_setup.m`.
+Unlike the STEP8 pilot, running it with `dryRun=false` processes raw Flanker
+recordings and can be expensive; start from the dry-run and a new outputName.

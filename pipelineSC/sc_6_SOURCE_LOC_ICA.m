@@ -99,7 +99,10 @@ end
 
 if ~(rc.stop == 7)
 
-    parfor ds = 1:length(infile)  %parfor
+    % parfor without a worker limit may auto-start a 32-worker Processes
+    % pool even when rc.useParallel=0. A limit of 0 runs serially.
+    asctWorkerLimit = sc_parallelWorkerLimit(rc);
+    parfor (ds = 1:length(infile), asctWorkerLimit)
 
         [~,dsname,~] = fileparts(infile(ds));
         dsname = char(strrep(dsname, '_ica2', ''));

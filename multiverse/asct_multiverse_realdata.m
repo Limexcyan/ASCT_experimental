@@ -44,6 +44,10 @@ if isfield(mv,'fieldtripPath')
         'ASCT:RealMultiverse:FieldTripPath','fieldtripPath must be an existing directory');
 end
 checkStatisticOverrides(mv.statistics);
+% Metrics are optional, read-only plugins and do not affect the stage plan.
+if isfield(mv,'metrics') && ~isempty(mv.metrics)
+    asct_multiverse_metrics_validate(mv.metrics);
+end
 assert(isfield(setup,'rc') && isfield(setup.rc,'expFolder') && ...
     isfield(setup.rc,'analysisName'), ...
     'ASCT:RealMultiverse:MissingSetup','Setup must include rc.expFolder and rc.analysisName');
@@ -257,6 +261,17 @@ for i=1:numel(specs)
     end
 end
 reportFinish(results,manifest);
+if isfield(mv,'metrics') && ~isempty(mv.metrics)
+    metricReport=asct_multiverse_metrics(root,mv.metrics);
+    nFailed=sum(metricReport.status=="failed");
+    fprintf('ASCT multiverse metrics: %d passed, %d failed, %d skipped.\n', ...
+        sum(metricReport.status=="passed"),nFailed, ...
+        sum(metricReport.status=="skipped"));
+    if nFailed>0
+        warning('ASCT:Metrics:Failed', ...
+            '%d metric evaluations failed; stage results are unchanged. See multiverse_metric_results.csv.',nFailed);
+    end
+end
 if any(strcmp({results.status},'failed'))
     error('ASCT:RealMultiverse:FailedRuns', ...
         'Some configurations failed; consult %s',manifest);

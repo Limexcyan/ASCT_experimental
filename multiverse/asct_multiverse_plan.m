@@ -25,6 +25,9 @@ for i=1:numel(specs)
             p.(groups{g}).(f{j})=s.changes.(groups{g}).(f{j});
         end
     end
+    if s.startStep==0
+        p.filter=asct_multiverse_validate_filter(p.filter);
+    end
     changedLoc=struct();
     if isfield(s.changes,'loc'), changedLoc=s.changes.loc; end
     % Validate effective settings while planning, before any files are written.
