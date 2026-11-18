@@ -41,6 +41,13 @@ multiverse.mode = 'single';       % 'single' (default) or 'multi'
 multiverse.sourceAnalysis = 'ana1'; % folder containing completed upstream stages
 multiverse.dryRun = true;        % preview first; set false to calculate
 multiverse.maxRuns = 2;          % safety limit for number of combinations
+% For real-data STEP10 + STEP11, enable the following after the first tests:
+multiverse.runStatistics = false;  % false=STEP10 only; true=STEP10 followed by STEP11
+% multiverse.outputName = 'ana1_auto_alpha'; % new output prefix; keeps previous multiverse intact
+% multiverse.fieldtripPath = '/opt/MATbox/fieldtrip'; % if FieldTrip is not on MATLAB path
+% multiverse.statistics.freqRange = {[8 12]}; % test alpha only
+% multiverse.statistics.subTitle = {'alpha'};
+% multiverse.statistics.pThresh = {0.05};
 % Example: only two STEP10 variants, based on the same reconstructed ROIs:
 multiverse.factors.con.varNorm = [0 1];
 % Other examples (leave commented until you need them):

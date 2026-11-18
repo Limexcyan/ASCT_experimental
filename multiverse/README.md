@@ -236,6 +236,54 @@ The original `<sourceAnalysis>` folder is **never overwritten**. The runner
 refuses to overwrite an already existing variant output unless you explicitly
 set `multiverse.allowOverwrite=true` (not recommended for initial tests).
 
+### Run STEP11 automatically after each real-data STEP10 (experimental)
+
+Following successful separate STEP10 and STEP11 tests on Flanker, the runner
+can now execute both stages and record **independent statuses** in the
+`realdata_manifest.csv` columns `connectivityStatus` and `statisticsStatus`.
+It validates that the required `*_mltout.mat` files exist before STEP11 and
+initializes FieldTrip when needed.
+
+Do **not** reuse a prior output prefix unless you intentionally want to
+replace its contents. For a clean end-to-end test without touching either
+`ana1` or old `ana1__mv_*` directories, add to the **multiverse** block:
+
+```matlab
+multiverse.mode = 'multi';
+multiverse.sourceAnalysis = 'ana1';
+multiverse.outputName = 'ana1_auto_alpha'; % new, isolated output prefix
+multiverse.runStatistics = true;
+multiverse.dryRun = true;            % verify the plan first; then false
+multiverse.maxRuns = 2;
+multiverse.allowOverwrite = false;  % do not delete/rerun existing variants
+multiverse.factors.con.varNorm = [0 1];
+multiverse.fieldtripPath = '/opt/MATbox/fieldtrip';  % FOSSIL only
+multiverse.statistics.freqRange = {[8 12]};
+multiverse.statistics.subTitle = {'alpha'};
+multiverse.statistics.pThresh = {0.05};
+```
+
+These `multiverse.statistics` settings override the original singleverse
+`con` settings for STEP11 **only**. They do not change the statistical design
+or the input to STEP10. If omitted, STEP11 uses the normal `con` settings
+from the setup (potentially many contrasts, bands, and p-value thresholds).
+
+Do not set `rc.analysisName` to the new prefix: `outputName` is applied only
+in multiverse mode, preserving the familiar singleverse setup. The new
+outputs go to `ana1_auto_alpha__mv_0001`, `ana1_auto_alpha__mv_0002`, and
+`ana1_auto_alpha__multiverse`. Existing source and variant outputs remain
+untouched. Existing variants from earlier manual STEP11 tests are **not**
+resumed by this version; choose a fresh output prefix. An interrupted run
+must be inspected before any manual rerun. The `allowOverwrite` option from
+previous versions remains available but is not recommended.
+
+This checks technical completion, **not** statistical reliability or
+multiverse robustness. Do not interpret p-values from a four-subject pilot
+as evidence of scientifically reliable group effects. Trial counts shown as
+`NaN` in `AR_summary.csv` may reflect diagnostic code reading the new
+analysis's empty `7_SOURCEACT`; the upstream files in `sourceAnalysis` have
+trials. This diagnostic issue is separate from the successful MVAR fits.
+
 Choose other factors using **existing ExSetup names**:
 
 ```matlab

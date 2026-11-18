@@ -80,6 +80,72 @@ classdef TestMultiverseRealData < matlab.unittest.TestCase
             testCase.verifyTrue(isfile(fullfile(folder,'experiment__mv_0001','multiverse_setup.mat')));
             testCase.verifyTrue(isfile(fullfile(folder,'experiment__multiverse','realdata_results.mat')));
         end
+        function statisticsPlanHasSeparateStatuses(testCase)
+            [p,folder]=fixture(testCase);
+            mv=baseOptions();
+            mv.factors.con.varNorm=[0 1];
+            mv.runStatistics=true;
+            mv.outputName='auto_alpha';
+            mv.statistics.freqRange={[8 12]};
+            mv.statistics.subTitle={'alpha'};
+            results=asct_multiverse_realdata(p,mv);
+            testCase.verifyEqual({results.status},{'planned','planned'});
+            testCase.verifyEqual({results.statisticsStatus},{'planned','planned'});
+            testCase.verifyEqual({results.connectivityStatus},{'planned','planned'});
+            testCase.verifyTrue(isfile(fullfile(folder,'auto_alpha__multiverse', ...
+                'realdata_manifest.csv')));
+            testCase.verifyFalse(isfolder(fullfile(folder,'auto_alpha__mv_0001')));
+        end
+        function runsStep10Then11WithOverrides(testCase)
+            [p,folder]=fixture(testCase);
+            p.begId=4;
+            p.endId=4;
+            p.con.conName='conn';
+            p.con.contrast2test={[1 2]};
+            mv=baseOptions();
+            mv.factors.con.varNorm=[0 1];
+            mv.runStatistics=true;
+            mv.dryRun=false;
+            mv.outputName='auto_alpha';
+            mv.statistics.freqRange={[8 12]};
+            mv.statistics.subTitle={'alpha'};
+            mv.statistics.pThresh={0.05};
+            results=asct_multiverse_realdata(p,mv,@fakeConnectivityRunner);
+            testCase.verifyTrue(all(strcmp({results.status},'passed')));
+            testCase.verifyTrue(all(strcmp({results.connectivityStatus},'passed')));
+            testCase.verifyTrue(all(strcmp({results.statisticsStatus},'passed')));
+            testCase.verifyEqual(results(1).output.stage,10);
+            testCase.verifyEqual(results(1).output.statistics.stage,11);
+            testCase.verifyEqual(results(1).output.statistics.alphaFrequency,[8 12]);
+            testCase.verifyEqual(results(2).output.statistics.pThresh,0.05);
+            testCase.verifyEqual(results(1).output.statistics.begId,4);
+            testCase.verifyTrue(isfile(fullfile(folder,'auto_alpha__multiverse', ...
+                'realdata_results.mat')));
+        end
+        function missingConnStopsBeforeStep11(testCase)
+            [p,folder]=fixture(testCase);
+            p.con.conName='conn';
+            p.con.contrast2test={[1 2]};
+            mv=baseOptions();
+            mv.factors.con.varNorm=1;
+            mv.runStatistics=true;
+            mv.dryRun=false;
+            testCase.verifyError(@()asct_multiverse_realdata(p,mv, ...
+                @(p,s,u)struct('stage',p.rc.load)), ...
+                'ASCT:RealMultiverse:Stopped');
+            saved=load(fullfile(folder,'experiment__multiverse','realdata_results.mat'));
+            testCase.verifyEqual(saved.results(1).connectivityStatus,'passed');
+            testCase.verifyEqual(saved.results(1).statisticsStatus,'failed');
+            testCase.verifyEqual(saved.results(1).status,'failed');
+        end
+        function refusesIncompleteStatisticOptions(testCase)
+            [p,~]=fixture(testCase);
+            mv=baseOptions();
+            mv.factors.con.varNorm=1;
+            mv.statistics.freqRange={[8 12]};
+            testCase.verifyError(@()asct_multiverse_realdata(p,mv), ...
+                'ASCT:RealMultiverse:StatisticBands');
+        end
         function missingBaselineFailsBeforeExecution(testCase)
             [p,folder]=fixture(testCase);
             rmdir(fullfile(folder,'previous','7_SOURCEACT'),'s');
@@ -109,4 +175,22 @@ p.chan=struct(); p.filter=struct(); p.seg=struct(); p.ar=struct();
 p.ica=struct(); p.loc=struct('method','mne','norm','cov');
 p.con=struct('mvarOrd',2,'lc',1,'unc',0);
 p.design=struct();
+end
+
+function result=fakeConnectivityRunner(p,~,~)
+result=struct('stage',p.rc.load);
+if isfield(p,'begId'), result.begId=p.begId; end
+if p.rc.load<=10
+    for dc=1:2
+        d=fullfile(p.rc.expFolder,p.rc.analysisName,'8_CONN',p.con.conName, ...
+            'lc',sprintf('DC%d',dc));
+        if ~isfolder(d), mkdir(d); end
+        f=fopen(fullfile(d,sprintf('A4_DC%d_mltout.mat',dc)),'w');
+        assert(f>0);
+        fclose(f);
+    end
+else
+    result.alphaFrequency=p.con.freqRange{1};
+    result.pThresh=p.con.pThresh{1};
+end
 end
