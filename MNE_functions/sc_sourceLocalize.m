@@ -105,7 +105,11 @@ if ~isfield(sourcemodel, 'leadfield') || loc.force_lf  % check if leadfield calc
     cfg.sourcemodel    = sourcemodel;
     sourcemodel  = ft_prepare_leadfield(cfg);
     
-    if ~isempty(rc.mriRawFolder)   % individual realistic source/head models
+    if ~isempty(rc.mriRawFolder) && ...
+            ~(isfield(rc,'multiverseIsolatedLeadfield') && rc.multiverseIsolatedLeadfield)
+        % Legacy analyses may persist the LF in the shared MRI folder.
+        % M2 must not mutate that file: each variant recomputes/uses its
+        % own LF in memory and saves only its own *_icloc.mat artifacts.
         sourcemodel_indiv_acpc = sourcemodel;
         disp('saving leadfield...');
         save(fullfile(scpath, 'sourcemodel_indiv_acpc.mat'), 'sourcemodel_indiv_acpc');

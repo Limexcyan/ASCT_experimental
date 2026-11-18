@@ -225,6 +225,10 @@ for DC = 1:length(design.DC)
                     if exist(fullfile(scpath, 'mri_acpc_seg.mat'))
                         mri_acpc_seg = ft_read_mri(fullfile(scpath, 'mri_acpc_seg.mat'));
                     else
+                        if isfield(rc,'multiverseIsolatedLeadfield') && rc.multiverseIsolatedLeadfield
+                            error('ASCT:M2:SharedMRIWrite', ...
+                                'Missing mri_acpc_seg.mat in %s; prepare the shared MRI in singleverse first.',scpath);
+                        end
                         mri_acpc = ft_read_mri(fullfile(scpath, 'mri_acpc.mat'));
                         cfg        = [];
                         cfg.output = 'brain';

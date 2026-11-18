@@ -24,7 +24,10 @@ if ~isfield(mv,'statistics'), mv.statistics=struct(); end
 if ~isfield(mv,'resume'), mv.resume=false; end
 if ~isfield(mv,'retryFailed'), mv.retryFailed=false; end
 if ~isfield(mv,'cacheStages'), mv.cacheStages=false; end
-for n={'resume','retryFailed','cacheStages','dryRun','allowOverwrite','continueOnError','runStatistics'}
+if ~isfield(mv,'strictArtifacts'), mv.strictArtifacts=false; end
+if ~isfield(mv,'strictLocalization'), mv.strictLocalization=false; end
+for n={'resume','retryFailed','cacheStages','strictArtifacts','strictLocalization', ...
+        'dryRun','allowOverwrite','continueOnError','runStatistics'}
     f=n{1};
     assert(islogical(mv.(f)) && isscalar(mv.(f)), ...
         'ASCT:RealMultiverse:InvalidFlag','%s must be logical scalar',f);
@@ -61,7 +64,8 @@ resultFile=fullfile(root,'realdata_results.mat');
 planSnapshot=struct('schemaVersion',1,'setup',setup, ...
     'sourceAnalysis',char(mv.sourceAnalysis),'specs',specs, ...
     'runStatistics',mv.runStatistics,'statistics',mv.statistics, ...
-    'cacheStages',mv.cacheStages,'plan',plan);
+    'cacheStages',mv.cacheStages,'strictArtifacts',mv.strictArtifacts, ...
+    'strictLocalization',mv.strictLocalization,'plan',plan);
 if isfield(mv,'fieldtripPath'), planSnapshot.fieldtripPath=char(mv.fieldtripPath); end
 [planSnapshot.gitRevision,planSnapshot.gitDirty]=detectGitRevision();
 if isfield(mv,'codeVersion'), planSnapshot.codeVersion=mv.codeVersion; end
@@ -220,6 +224,9 @@ for i=1:numel(specs)
             end
             fprintf('\n');
             results(i).output=runnerFcn(runsetup,spec,[]);
+            if mv.strictArtifacts
+                asct_multiverse_verify_artifacts(runsetup);
+            end
             results(i).connectivityStatus='passed';
             checkpoint(root,results,mv,specs,planSnapshot);
             if mv.runStatistics
@@ -362,6 +369,12 @@ switch stage
         dc=dir(fullfile(root,'7_SOURCEACT','DC*'));
         dc=dc([dc.isdir]);
         tf=~isempty(mods) && ~isempty(dc);
+        if isfield(p,'design') && isfield(p.design,'DC') && ~isempty(p.design.DC)
+            % Never reuse a donor with missing design conditions.
+            expectedNames=arrayfun(@(n)sprintf('DC%d',n), ...
+                1:numel(p.design.DC),'UniformOutput',false);
+            if ~all(ismember(expectedNames,{dc.name})), tf=false; return; end
+        end
         for d=1:numel(dc)
             for m=1:numel(mods)
                 files=dir(fullfile(dc(d).folder,dc(d).name,mods{m}, ...

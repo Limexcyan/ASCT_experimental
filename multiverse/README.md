@@ -1,3 +1,10 @@
+## M1+M2: localization parameters and real STEP8 integration
+
+See [M2_LOCALIZATION.md](M2_LOCALIZATION.md) for actual `loc.norm`/`lambda`/
+`noiseLev`/`depthWeight` behavior, protection against shared leadfield writes,
+`strictArtifacts` validation, and an executable Flanker pilot that checks
+STEP8 -> STEP9 -> STEP10 + donor reuse.
+
 # ASCT multiverse analysis — single-case / simulation phase
 
 This module is **MATLAB**, not the older standalone Python prototype. It is built

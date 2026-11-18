@@ -28,6 +28,20 @@ end
 runsetup.rc.analysisName=[char(base.rc.analysisName) '__' spec.id];
 runsetup.rc.load=spec.startStep;
 runsetup.rc.stop=10; % current implementation is a single-case STEP10 study
+changedLoc=struct();
+if isfield(spec.changes,'loc'), changedLoc=spec.changes.loc; end
+strict=false;
+if isfield(mv,'strictLocalization'), strict=mv.strictLocalization; end
+runsetup.loc=asct_multiverse_validate_localization(runsetup.loc,changedLoc,strict && spec.startStep<=8);
+if spec.startStep<=9
+    % Neither localization nor reconstruction may modify shared MRI models.
+    runsetup.rc.multiverseIsolatedLeadfield=true;
+end
+if spec.startStep<=8 && isfield(changedLoc,'depthWeight')
+    % An existing source model may contain a leadfield for another weight.
+    runsetup.loc.force_lf=1;
+end
+if isfield(mv,'fieldtripPath'), runsetup.fieldtripPath=char(mv.fieldtripPath); end
 % Keep existing datasets intact. Reuse upstream results only when they are
 % scientifically valid for the changed processing step.
 for k={'ica2Name','iclocName','sigroiName'}
