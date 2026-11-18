@@ -10,7 +10,7 @@ ica=p.ica; loc=p.loc; con=p.con; design=p.design;
 if isfield(p,'simul'), simul=p.simul; end
 if isfield(p,'begId'), begId=p.begId; end
 if isfield(p,'endId'), endId=p.endId; end
-run(fullfile(root,'sc_initAnalysis.m'));
+sc_initAnalysis;
 output=struct('analysisFolder',rc.analysisFolder);
 if isfield(p,'truthConnectivity')
     output.performance=asct_multiverse_evaluate_output(rc.analysisFolder,con.conName,p.truthConnectivity);
