@@ -19,6 +19,10 @@ disp([newline 'preparing AR statistics....' newline])
 
 % --- Paths ---
 trialRoot = fullfile(rc.expFolder, rc.analysisName, '7_SOURCEACT');
+% STEP10-only multiverse stores ROI signals in the source analysis.
+if isfield(rc,'sigroiName') && ~isempty(rc.sigroiName)
+    trialRoot = fullfile(rc.expFolder, rc.sigroiName, '7_SOURCEACT');
+end
 covRoot   = fullfile(rc.expFolder, rc.analysisName, '8_CONN', ...
     con.conName, 'lc');
 outDir    = fullfile(rc.expFolder, rc.analysisName, '8_CONN', con.conName);
@@ -125,21 +129,27 @@ for i = 1:nC
     winC(i) = string(con.conName);
 
     % Filename: <subject>_<condition>_mltout.mat
-    % Condition can contain underscores. Strip the trailing _mltout.mat
-    % then split on the LAST underscore to get subject and condition.
-    base = regexprep(covFiles(i).name, '_mltout\.mat$', '');
-    % Try to detect condition as "stay_left" / "shift_right" pattern
-    tok = regexp(base, '^(.*)_(stay|shift)_([^_]+)$', 'tokens', 'once');
-    if ~isempty(tok)
-        subC(i) = string(tok{1});
-        % condition = tok{2} + "_" + tok{3};  % not used currently
+    % Output file: <dataset>_<condition>_mltout.mat. Flanker condition
+    % FLANK_INCO contains an underscore, so splitting on the LAST
+    % underscore would truncate the dataset ID incorrectly. Match against
+    % known baseline ROI dataset stems for this DC instead.
+    base = string(regexprep(covFiles(i).name, '_mltout\.mat$', ''));
+    candidates = find(dcT == dcC(i) & startsWith(base, subT + "_"));
+    if ~isempty(candidates)
+        [~,longest] = max(strlength(subT(candidates)));
+        subC(i) = subT(candidates(longest));
     else
-        % Fallback: subject is everything before the last underscore
-        und = find(base == '_', 1, 'last');
-        if ~isempty(und)
-            subC(i) = string(base(1:und-1));
+        % Legacy fallback when the original ROI file is not available.
+        tok = regexp(char(base), '^(.*)_(stay|shift)_([^_]+)$', 'tokens', 'once');
+        if ~isempty(tok)
+            subC(i) = string(tok{1});
         else
-            subC(i) = string(base);
+            und = find(char(base) == '_', 1, 'last');
+            if ~isempty(und)
+                subC(i) = extractBefore(base,und);
+            else
+                subC(i) = base;
+            end
         end
     end
     fileC(i) = string(covFiles(i).name);

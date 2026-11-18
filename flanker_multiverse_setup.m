@@ -39,16 +39,22 @@ rc.analysisName='ana1';                         % the name of the current analys
 
 %% SINGLEVERSE / MULTIVERSE
 % Keep the established Flanker configuration below unchanged.
-% 'single' calls the original ASCT entrypoint, as before.
+% 'single' uruchamia pełną analizę rc.load..rc.stop (jak dawniej).
 % 'multi' reuses the reconstructed ROI signals from sourceAnalysis and
-% runs separate STEP10 configurations without overwriting the source.
+% tworzy osobne STEP10/11 bez nadpisywania folderu z ROI.
 multiverse.mode = 'multi';                  % 'single' or 'multi'
-multiverse.sourceAnalysis = 'ana1';         % existing analysis with 7_SOURCEACT
-multiverse.dryRun = true;                  % FIRST RUN: plan only, no STEP10
-multiverse.maxRuns = 2;                    % safety limit
+multiverse.sourceAnalysis = 'ana1';         % istniejąca analiza z ROI w 7_SOURCEACT
+multiverse.dryRun = true;                   % true = tylko plan; po inspekcji ustaw false
+multiverse.maxRuns = 2;                     % dokładnie 2 konfiguracje
 multiverse.allowOverwrite = false;        % protect previous outputs
-multiverse.continueOnError = false;        % stop if a variant fails
-multiverse.factors.con.varNorm = [0 1];    % 2 STEP10 variants
+multiverse.continueOnError = false;        % zatrzymaj po niepowodzeniu
+multiverse.outputName = 'ana1_mv_flanker_alpha_v1'; % nowy prefiks; nie ruszaj ana1
+multiverse.runStatistics = true;            % STEP11 po poprawnym STEP10
+multiverse.fieldtripPath = '/opt/MATbox/fieldtrip';
+multiverse.statistics.freqRange = {[8 12]};
+multiverse.statistics.subTitle = {'alpha'};
+multiverse.statistics.pThresh = {0.05};
+multiverse.factors.con.varNorm = [0 1];    % ten sam sygnał ROI, dwa normowania MVAR
 
 rc.dataFormat = 'bdf';                          % raw data format: 'itab' 'ctf' (MEG) 'bdf' 'eeglab' (EEG) 'itab-sim' (simulations)
 rc.dataRawFolder = '0_raw';                     % raw data folder
@@ -168,7 +174,9 @@ con.chanSel = '1-';     % ROIs to include: '1-' fo all; ex: '1,2,4,5' for select
 con.useRange = 1;       % cut range from predefined epochs (for ER study); 0 to analyze whole epochs
 con.timeRangeStart = 0.3; % range start [sec] if useRange = 1
 con.timeRangeEnd = 0.6; % range end [sec] if useRange = 1
-con.varNorm = 1
+con.varNorm = 1;
+con.lc = 1;       % wykorzystaj sygnały corrected for leakage
+con.unc = 0;      % bez drugiej gałęzi UNC w pilotażu
 
 %% DATA EXPORT and STATS
 % DC stands for DATA CONFIGURATION. used to build elements of statistical comparisons
@@ -197,11 +205,10 @@ con.iqr = {999};                                   % remove extremes before stat
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 tic
-%addpath('/opt/MATbox/fieldtrip');
-addpath('/mnt/devv/Exp/LG/wprawki/flanker/fix', '-begin');
+% Lokalne poprawki tylko jeśli katalog istnieje.
+fixFolder=fullfile(rc.expFolder,'fix');
+if isfolder(fixFolder), addpath(fixFolder,'-begin'); end
 rehash;
-which sc_3_ARTIFACTS_ICA -all
-%ft_defaults;
 if strcmpi(multiverse.mode,'single')
     sc_initAnalysis;
 elseif strcmpi(multiverse.mode,'multi')
@@ -213,6 +220,8 @@ elseif strcmpi(multiverse.mode,'multi')
         'ar',ar,'ica',ica,'loc',loc,'con',con,'design',design);
     if exist('begId','var'), setup.begId=begId; end
     if exist('endId','var'), setup.endId=endId; end
+    % Sprawdz rzeczywiste ROI dla DC1 / DC2 przed zapisaniem wynikow.
+    asct_multiverse_flanker_preflight(setup,multiverse);
     results=asct_multiverse_realdata(setup,multiverse);
 else
     error('ASCT:InvalidMode', ...
