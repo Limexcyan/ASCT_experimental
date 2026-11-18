@@ -192,3 +192,100 @@ CI is descriptive; 20 draws may still yield imprecise estimates. Both bands use
 one fixed 0.15 DTF threshold and the same ground-truth directed source network.
 No multiple-comparison correction, realistic MEG mixing/inversion, or
 production `mmultar` claim is made here.
+
+## Real experimental data: launch directly from an existing EX_SETUP file
+
+This is the preferred interface for researchers accustomed to the singleverse
+EX_SETUP script. It **does not synthesize any signals** and does **not** use
+F1 against imaginary ground truth. The `multiverse.mode='single'` branch
+continues to call the original `sc_initAnalysis` unchanged.
+
+A working example is included in `templates/EX_SETUP_multiverse_template.m`. In your
+existing experiment setup, keep all your original settings and paths.
+Add near the top, after `rc.load`/`rc.stop`:
+
+```matlab
+multiverse.mode = 'multi';              % or 'single'
+multiverse.sourceAnalysis = 'ana1';      % completed singleverse folder
+multiverse.dryRun = true;               % START with a dry run
+multiverse.maxRuns = 2;
+multiverse.factors.con.varNorm = [0 1]; % precisely two STEP10 analyses
+```
+
+Replace only the final call (`sc_initAnalysis`) with:
+
+```matlab
+if strcmpi(multiverse.mode,'single')
+    sc_initAnalysis
+else
+    toolboxRoot=fileparts(which('sc_initAnalysis'));
+    addpath(fullfile(toolboxRoot,'multiverse'));
+    setup=struct('rc',rc,'chan',chan,'filter',filter,'seg',seg, ...
+                 'ar',ar,'ica',ica,'loc',loc,'con',con,'design',design);
+    if exist('begId','var'), setup.begId=begId; end
+    if exist('endId','var'), setup.endId=endId; end
+    results=asct_multiverse_realdata(setup,multiverse);
+end
+```
+
+After the dry run, inspect `<rc.expFolder>/<rc.analysisName>__multiverse/realdata_manifest.csv`,
+then set `multiverse.dryRun=false` and run the same setup script once more.
+The two outputs will be in separate `rc.expFolder` directories
+`<rc.analysisName>__mv_0001` and `<rc.analysisName>__mv_0002`.
+The original `<sourceAnalysis>` folder is **never overwritten**. The runner
+refuses to overwrite an already existing variant output unless you explicitly
+set `multiverse.allowOverwrite=true` (not recommended for initial tests).
+
+Choose other factors using **existing ExSetup names**:
+
+```matlab
+multiverse.factors.con.mvarOrd = [5 7];
+multiverse.factors.con.chanSel = {'1-3','1-5'};
+multiverse.factors.con.removeERP = [false true];
+multiverse.factors.con.orderSelection = {'fixed','aic'};
+multiverse.factors.loc.depthWeight = [0.2 0.5];
+multiverse.factors.filter.HPfreq = [1 8];
+```
+
+**All combinations are enumerated**, not sampled. If the grid has more than
+`maxRuns` combinations, the runner stops before doing anything. Start with
+one varied factor. Distinct variants get isolated output folders and a
+machine-readable manifest with the exact settings, start stage, status and error.
+
+### Automatic reuse policy (essential to valid comparisons)
+
+| Varied factors | ASCT stages run | Required completed input |
+|---|---|---|
+| `con.mvarOrd`, `con.varNorm`, `con.chanSel`, `con.removeERP`, etc. | STEP10 | `sourceAnalysis/7_SOURCEACT` (ROI signals) |
+| `con.decimate` | STEP9–10 | `sourceAnalysis/6_ICA2`, `sourceAnalysis/7_SOURCEACT/icloc` |
+| `loc.depthWeight`, `loc.norm`, etc. | STEP8–10 | `sourceAnalysis/6_ICA2` |
+| `filter.HPfreq`, `filter.LPfreq`, etc. | STEP0–10 | raw recordings in `rc.dataRawFolder` |
+
+When changing localization, the runner reuses the original ICA2 but computes
+**new** source localization and ROI reconstructions for every variant.
+When changing filtering, it runs the whole pipeline from raw files;
+never just alters `filter.HPfreq` while reusing incompatible ROI signals.
+The `rc.sigroiName` lookup in `sc_8_CONN` and baseline ICA2 lookup in
+`sc_7_SIG_RECON` were adjusted to support this without duplicating folders.
+
+This is **not** a group-level inference workflow and does not calculate a
+scientific performance score without known ground truth. A successful run
+indicates ASCT completed; compare DTF and other connectivity results using
+appropriate real-data stability/effect metrics in a subsequent analysis.
+
+### Safety and limitations
+
+- Existing ASCT dependencies (FieldTrip, mmultar and local data paths) are
+  required for actual execution, not for the pure configuration-grid tests.
+- Two configurations are **not** two recording trials. The real-data runner
+  uses the trials in your recorded dataset, subject to ordinary ExSetup selection.
+- For STEP8, only the currently supported `loc.method='mne'` is allowed.
+- `loc.method`, template vs individual T1, and changing `rc.mriRawFolder` have
+  not yet been experimentally verified in a real-data multiverse.
+- `multiverse.dryRun=true` checks directories and produces a plan without
+  running a single ASCT data-processing stage. The first real STEP10 run
+  should use two variants and a small existing experiment.
+- Automated tests use fake dataset folders and mock callbacks; **they do not**
+  establish that FieldTrip / mmultar works with a particular real recording.
+
+Run configuration tests using `runtests('tests/TestMultiverseRealData.m')`.
