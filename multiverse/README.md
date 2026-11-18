@@ -162,3 +162,33 @@ The `.github/workflows/matlab-tests.yml` workflow is configured to run on
 pushes to `feature/multiverse_analysis` (as well as `main`) and on pull requests.
 It runs both the MATLAB test suite and this smoke, then uploads its CSV/MAT
 files as a GitHub Actions artifact.
+
+## 3. Twenty independent simulations, two trials each (paired benchmark)
+
+The first `asct_multiverse_smoke` compares just ONE simulated realization and
+cannot establish a band effect. For a reproducible follow-up of 20 independent
+realizations with the **same 2 trials per realization**, run:
+
+```bash
+/opt/matlab_nogui_restricted.sh -batch "addpath('multiverse'); asct_multiverse_replicates('multiverse_replicates_results',20,2000);"
+```
+
+`asct_multiverse_replicates` regenerates a new source-level VAR simulation for
+*each* replicate (distinct RNG seed); both wide and narrow processing reuse
+exactly the same observed source data within the replicate. Replicate #1 uses
+the same seed as the original 2-trial smoke for direct comparison. It exports:
+
+- `replicate_metrics.csv`: each replicate/pathway with TP/FP/FN/TN, F1,
+  precision, recall, false positive rate, order, number of trials and seed.
+- `paired_f1.csv`: wide, narrow and wide-minus-narrow F1 side by side.
+- `paired_summary.csv`: mean F1 per band, mean paired difference and
+  percentile 95% confidence intervals for simulation-to-simulation variation.
+- `paired_results.mat`: study settings, configurations, per-path metrics and
+  paired summary, for later reanalysis.
+
+**Uncertainty unit:** bootstrap resamples *independent simulations* as complete
+pairs, **never** individual samples or the two data trials as if independent.
+CI is descriptive; 20 draws may still yield imprecise estimates. Both bands use
+one fixed 0.15 DTF threshold and the same ground-truth directed source network.
+No multiple-comparison correction, realistic MEG mixing/inversion, or
+production `mmultar` claim is made here.

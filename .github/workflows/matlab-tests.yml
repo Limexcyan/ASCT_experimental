@@ -38,3 +38,18 @@ jobs:
             multiverse_smoke_results/multiverse_results.mat
             multiverse_smoke_results/smoke_settings.mat
           if-no-files-found: warn
+      - name: Run 20 independent paired oracle simulations
+        uses: matlab-actions/run-command@v2
+        with:
+          command: addpath('multiverse'); asct_multiverse_replicates('multiverse_replicates_results',20,2000)
+      - name: Upload paired multiverse results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: asct-multiverse-20replicates
+          path: |
+            multiverse_replicates_results/replicate_metrics.csv
+            multiverse_replicates_results/paired_f1.csv
+            multiverse_replicates_results/paired_summary.csv
+            multiverse_replicates_results/paired_results.mat
+          if-no-files-found: warn
