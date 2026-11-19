@@ -23,6 +23,16 @@ classdef TestMultiverseM6 < matlab.unittest.TestCase
             tc.verifyEqual(a.trueA(1,2,:),zeros(1,1,2));
             tc.verifyEqual(nnz(triu(a.truth,0)),0);
         end
+        function fullAcyclicGraphAssignsOneEdgePerSelection(tc)
+            cfg=localConfig();opts=localOptions();
+            cfg.nSources=5;
+            cfg.nInteractions=cfg.nSources*(cfg.nSources-1)/2;
+            sim=asct_m6_generate(cfg,opts);
+            tc.verifyEqual(nnz(sim.truth),cfg.nInteractions);
+            tc.verifyEqual(nnz(triu(sim.truth,0)),0);
+            tc.verifyTrue(sim.truth(2,1));
+            tc.verifyEqual(nnz(sim.trueA(:,:,cfg.lag)),cfg.nInteractions);
+        end
         function erpChangesOnlyEvokedAdditionForPairedSeed(tc)
             cfg=localConfig();opts=localOptions();
             a=asct_m6_generate(cfg,opts);

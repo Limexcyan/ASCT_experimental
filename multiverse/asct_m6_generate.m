@@ -60,7 +60,10 @@ else
     selection=[anchor;reshape(other(picks),[],1)];
 end
 truth=false(n,n);
-for e=selection
+% MATLAB for-loops iterate matrix columns, not vector elements. Iterate
+% selection by index so each assignment creates exactly one directed edge.
+for k=1:numel(selection)
+    e=selection(k);
     target=edgeCandidates(e,1); source=edgeCandidates(e,2);
     A(target,source,cfg.lag)=cfg.strength;
     truth(target,source)=true;

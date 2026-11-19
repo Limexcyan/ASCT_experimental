@@ -27,8 +27,10 @@ for first=1:batchSize:nBootstrap
     count=last-first+1;
     sampleIndex=randi(n,n,count);
     for metric=1:nMetrics
-        bootstrapMeans(first:last,metric)= ...
-            mean(values(sampleIndex,metric),1)';
+        % With two subscripts MATLAB returns a column for matrix indices.
+        % Restore [replicate x bootstrap draw] before averaging each draw.
+        draws=reshape(values(sampleIndex,metric),n,count);
+        bootstrapMeans(first:last,metric)=mean(draws,1)';
     end
 end
 sorted=sort(bootstrapMeans,1);

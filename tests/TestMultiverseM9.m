@@ -52,6 +52,16 @@ classdef TestMultiverseM9 < matlab.unittest.TestCase
             tc.verifyEqual(actual.ciHigh,sorted(ceil(0.975*nDraws)), ...
                 'AbsTol',1e-14);
         end
+        function batchedBootstrapPreservesIndependentMetricColumns(tc)
+            x=(1:9)';
+            single=asct_m9_bootstrap(x,150,37);
+            both=asct_m9_bootstrap([x 2*x+1],150,37);
+            tc.verifyEqual(both.mean,[5 11]);
+            tc.verifyEqual(both.ciLow, ...
+                [single.ciLow 2*single.ciLow+1],'AbsTol',1e-12);
+            tc.verifyEqual(both.ciHigh, ...
+                [single.ciHigh 2*single.ciHigh+1],'AbsTol',1e-12);
+        end
         function pairedERPRequiresSameSimulation(tc)
             T=table([1;1],[12;12],[5;5],[1;1],[0;0], ...
                 {'fixed';'fixed'},[0;0],[false;true],[0.3;0.5], ...
