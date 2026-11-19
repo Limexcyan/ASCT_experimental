@@ -6,6 +6,7 @@ on:
       - 'feature/m5-*'
       - 'feature/m6-*'
       - 'feature/m9-*'
+      - 'feature/m10-*'
   pull_request:
     paths:
       - '.github/workflows/multiverse-m5-m9.yml'
@@ -18,7 +19,7 @@ permissions:
 
 jobs:
   matlab-unit:
-    name: MATLAB R2024b unit tests (M5-M9)
+    name: MATLAB R2024b unit tests (M5-M10)
     runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:
@@ -33,6 +34,6 @@ jobs:
           command: |
             addpath(pwd);
             addpath(fullfile(pwd,'multiverse'));
-            results=runtests({'tests/TestMultiverseM5.m','tests/TestMultiverseM6.m','tests/TestMultiverseM7.m','tests/TestMultiverseM8.m','tests/TestMultiverseM9.m'});
+            results=runtests({'tests/TestMultiverseM5.m','tests/TestMultiverseM6.m','tests/TestMultiverseM7.m','tests/TestMultiverseM8.m','tests/TestMultiverseM9.m','tests/TestMultiverseM10.m'});
             disp(results);
             assert(~isempty(results) && all([results.Passed]),'ASCT:M9:CI','MATLAB source tests failed');
