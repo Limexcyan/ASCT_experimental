@@ -171,6 +171,21 @@ classdef TestMultiverseM9 < matlab.unittest.TestCase
                 {'scenario'},{'gain'},100,42), ...
                 'ASCT:M9:DuplicateReplicate');
         end
+        function pairedInferenceEnumeratesExactSignPatterns(tc)
+            % R2024b bitget requires scalar positions or matching sizes.
+            % For n identical positive effects, only two sign patterns
+            % reach the observed absolute mean: all plus or all minus.
+            for n=[2 6 16]
+                T=table(ones(n,1),(1:n)',ones(n,1), ...
+                    'VariableNames',{'scenario','simSeed','gain'});
+                state=rng;
+                S=asct_m9_paired_inference(T,{'scenario'}, ...
+                    {'gain'},100,42,'none',0.05);
+                tc.verifyEqual(S.nPairs,n);
+                tc.verifyEqual(S.pRaw_gain,2/(2^n),'AbsTol',1e-12);
+                tc.verifyEqual(rng,state);
+            end
+        end
         function pairedInferenceKeepsUndefinedF1(tc)
             T=table([1;1;2;2],[11;12;11;12], ...
                 [NaN;NaN;0.5;0.2], ...

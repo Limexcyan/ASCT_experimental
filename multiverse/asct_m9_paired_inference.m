@@ -85,8 +85,13 @@ end
 function p = signFlipP(v,seed)
 n=numel(v);observed=abs(mean(v));
 if n<=16
-    % Exact randomization distribution including the observed arrangement.
-    signs=2*double(bitget(uint32((0:2^n-1)'),1:n))-1;
+    % Enumerate sign assignments column-by-column: MATLAB bitget does not
+    % expand an N-by-1 vector against a 1-by-n vector of bit positions.
+    codes=uint32((0:2^n-1)');
+    signs=zeros(numel(codes),n);
+    for k=1:n
+        signs(:,k)=2*double(bitget(codes,k))-1;
+    end
     means=abs(signs*v(:)/n);
     p=mean(means>=observed-1e-12);
     return;
