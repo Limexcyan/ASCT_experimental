@@ -141,6 +141,46 @@ classdef TestMultiverseM9 < matlab.unittest.TestCase
             tc.verifyEqual(P.simSeed,[11;12]);
             tc.verifyEqual(P.fprReduction,[0.2;0.1],'AbsTol',1e-12);
         end
+        function multipleTestingCorrectionsMatchReference(tc)
+            p=[0.01;0.03;0.06;NaN];
+            tc.verifyEqual(asct_m9_adjust_p(p,'holm'), ...
+                [0.03;0.06;0.06;NaN],'AbsTol',1e-12);
+            tc.verifyEqual(asct_m9_adjust_p(p,'bh'), ...
+                [0.03;0.045;0.06;NaN],'AbsTol',1e-12);
+            tc.verifyEqual(asct_m9_adjust_p(p,'bonferroni'), ...
+                [0.03;0.09;0.18;NaN],'AbsTol',1e-12);
+            tc.verifyError(@()asct_m9_adjust_p([0.3;-0.1],'bh'), ...
+                'ASCT:M9:PValue');
+        end
+        function pairedInferenceUsesIndependentDifferences(tc)
+            T=table(ones(6,1),(1:6)',(1:6)',zeros(6,1), ...
+                'VariableNames',{'scenario','simSeed','gain','nullGain'});
+            state=rng;
+            S=asct_m9_paired_inference(T,{'scenario'}, ...
+                {'gain','nullGain'},100,42,'holm',0.05);
+            tc.verifyEqual(rng,state);
+            tc.verifyEqual(S.nPairs,6);
+            tc.verifyEqual(S.mean_gain,3.5);
+            tc.verifyEqual(S.pRaw_gain,2/64,'AbsTol',1e-12);
+            tc.verifyEqual(S.pAdjusted_gain,2/64,'AbsTol',1e-12);
+            tc.verifyTrue(S.reject_gain);
+            tc.verifyEqual(S.pRaw_nullGain,1);
+            tc.verifyFalse(S.reject_nullGain);
+            T.simSeed(6)=1;
+            tc.verifyError(@()asct_m9_paired_inference(T, ...
+                {'scenario'},{'gain'},100,42), ...
+                'ASCT:M9:DuplicateReplicate');
+        end
+        function pairedInferenceKeepsUndefinedF1(tc)
+            T=table([1;1;2;2],[11;12;11;12], ...
+                [NaN;NaN;0.5;0.2], ...
+                'VariableNames',{'scenario','simSeed','gain'});
+            S=asct_m9_paired_inference(T,{'scenario'}, ...
+                {'gain'},100,42);
+            tc.verifyTrue(isnan(S.mean_gain(1)));
+            tc.verifyEqual(S.nValid_gain,[0;2]);
+            tc.verifyTrue(isnan(S.pAdjusted_gain(1)));
+        end
         function summaryGroupsCorrectly(tc)
             T=table([1;1;2;2], [1;2;1;2],[0.2;0.4;0.6;0.8], ...
                 'VariableNames',{'scenario','replicate','f1'});
