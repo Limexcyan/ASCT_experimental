@@ -1,0 +1,23 @@
+function report = asct_m6_m9_smoke(outputRoot)
+%ASCT_M6_M9_SMOKE Small reproducible MATLAB integration run, no FieldTrip.
+% Creates NEW sibling output folders. Never points to a real-data folder.
+if nargin<1 || isempty(outputRoot)
+    outputRoot=fullfile(tempdir,'asct_m6_m9_smoke');
+end
+assert(~isfolder(outputRoot),'ASCT:Study:OutputExists', ...
+    'Smoke output root already exists; choose a new path');
+mkdir(outputRoot);
+opts6=struct('nReplicates',2,'nBootstrap',100);
+[T6,S6]=asct_m6_study(fullfile(outputRoot,'M6'),opts6);
+opts7=struct('nReplicates',2,'nBootstrap',100);
+[T7,S7]=asct_m7_study(fullfile(outputRoot,'M7'),opts7);
+opts8=struct('nReplicates',2,'nBootstrap',100, ...
+    'roiCounts',[5 8 12],'evokedAmplitudes',[0 1], ...
+    'varianceDrifts',[0 0.6],'orderModes',{{'fixed','aic'}}, ...
+    'normModes',[0 1],'removeERPModes',[false true]);
+[T8,S8,P8]=asct_m8_study(fullfile(outputRoot,'M8_M9'),opts8);
+report=struct('M6Cases',height(T6),'M6Groups',height(S6), ...
+    'M7Cases',height(T7),'M7Groups',height(S7), ...
+    'M8Cases',height(T8),'M8Groups',height(S8), ...
+    'M9ERPPairs',height(P8),'outputRoot',outputRoot);
+end

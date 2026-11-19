@@ -3,8 +3,10 @@ function sc_8_CONN(rc, seg, design, loc, mv, begId, endId)
 %% loadfiles
 
 currentSIGROIfolder = rc.analysisFolder;
-if isfield(rc, 'sigroiName')   %in case the data to conn are taken from different dir
-    currentSIGROIfolder = fullfile(currentSIGROIfolder, rc.analysisName, rc.sigroiName);
+if isfield(rc, 'sigroiName') && ~isempty(rc.sigroiName)
+    % Reuse STEP9 signals from an existing analysis when varying only STEP10.
+    % The previous path accidentally duplicated rc.analysisName.
+    currentSIGROIfolder = fullfile(rc.expFolder, rc.sigroiName);
 end
 
 mv.ntrls = [];       % no of trials - auto determinead
@@ -109,8 +111,10 @@ if ~strcmp(mv.chansel,'1-')
             fprintf(fid, loc.ROI(i).name);
         end
         fclose(fid);
+        % Match multar's output labels to the selected ROI subset.
+        mv.descfil = labelfiletrim;
     else
-        warning('Cannot open trim label file %s', filename);
+        error('ASCT:M8:Labels','Cannot write ROI labels to %s',labelfiletrim);
     end
 end
 

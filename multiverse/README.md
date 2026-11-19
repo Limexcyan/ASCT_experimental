@@ -1,3 +1,10 @@
+## M1+M2: localization parameters and real STEP8 integration
+
+See [M2_LOCALIZATION.md](M2_LOCALIZATION.md) for actual `loc.norm`/`lambda`/
+`noiseLev`/`depthWeight` behavior, protection against shared leadfield writes,
+`strictArtifacts` validation, and an executable Flanker pilot that checks
+STEP8 -> STEP9 -> STEP10 + donor reuse.
+
 # ASCT multiverse analysis — single-case / simulation phase
 
 This module is **MATLAB**, not the older standalone Python prototype. It is built
@@ -192,3 +199,219 @@ CI is descriptive; 20 draws may still yield imprecise estimates. Both bands use
 one fixed 0.15 DTF threshold and the same ground-truth directed source network.
 No multiple-comparison correction, realistic MEG mixing/inversion, or
 production `mmultar` claim is made here.
+
+## Real experimental data: launch directly from an existing EX_SETUP file
+
+This is the preferred interface for researchers accustomed to the singleverse
+EX_SETUP script. It **does not synthesize any signals** and does **not** use
+F1 against imaginary ground truth. The `multiverse.mode='single'` branch
+continues to call the original `sc_initAnalysis` unchanged.
+
+A working example is included in `templates/EX_SETUP_multiverse_template.m`. In your
+existing experiment setup, keep all your original settings and paths.
+Add near the top, after `rc.load`/`rc.stop`:
+
+```matlab
+multiverse.mode = 'multi';              % or 'single'
+multiverse.sourceAnalysis = 'ana1';      % completed singleverse folder
+multiverse.dryRun = true;               % START with a dry run
+multiverse.maxRuns = 2;
+multiverse.factors.con.varNorm = [0 1]; % precisely two STEP10 analyses
+```
+
+Replace only the final call (`sc_initAnalysis`) with:
+
+```matlab
+if strcmpi(multiverse.mode,'single')
+    sc_initAnalysis
+else
+    toolboxRoot=fileparts(which('sc_initAnalysis'));
+    addpath(fullfile(toolboxRoot,'multiverse'));
+    setup=struct('rc',rc,'chan',chan,'filter',filter,'seg',seg, ...
+                 'ar',ar,'ica',ica,'loc',loc,'con',con,'design',design);
+    if exist('begId','var'), setup.begId=begId; end
+    if exist('endId','var'), setup.endId=endId; end
+    results=asct_multiverse_realdata(setup,multiverse);
+end
+```
+
+After the dry run, inspect `<rc.expFolder>/<rc.analysisName>__multiverse/realdata_manifest.csv`,
+then set `multiverse.dryRun=false` and run the same setup script once more.
+The two outputs will be in separate `rc.expFolder` directories
+`<rc.analysisName>__mv_0001` and `<rc.analysisName>__mv_0002`.
+The original `<sourceAnalysis>` folder is **never overwritten**. The runner
+refuses to overwrite an already existing variant output unless you explicitly
+set `multiverse.allowOverwrite=true` (not recommended for initial tests).
+
+### Run STEP11 automatically after each real-data STEP10 (experimental)
+
+Following successful separate STEP10 and STEP11 tests on Flanker, the runner
+can now execute both stages and record **independent statuses** in the
+`realdata_manifest.csv` columns `connectivityStatus` and `statisticsStatus`.
+It validates that the required `*_mltout.mat` files exist before STEP11 and
+initializes FieldTrip when needed.
+
+Do **not** reuse a prior output prefix unless you intentionally want to
+replace its contents. For a clean end-to-end test without touching either
+`ana1` or old `ana1__mv_*` directories, add to the **multiverse** block:
+
+```matlab
+multiverse.mode = 'multi';
+multiverse.sourceAnalysis = 'ana1';
+multiverse.outputName = 'ana1_auto_alpha'; % new, isolated output prefix
+multiverse.runStatistics = true;
+multiverse.dryRun = true;            % verify the plan first; then false
+multiverse.maxRuns = 2;
+multiverse.allowOverwrite = false;  % do not delete/rerun existing variants
+multiverse.factors.con.varNorm = [0 1];
+multiverse.fieldtripPath = '/opt/MATbox/fieldtrip';  % FOSSIL only
+multiverse.statistics.freqRange = {[8 12]};
+multiverse.statistics.subTitle = {'alpha'};
+multiverse.statistics.pThresh = {0.05};
+```
+
+These `multiverse.statistics` settings override the original singleverse
+`con` settings for STEP11 **only**. They do not change the statistical design
+or the input to STEP10. If omitted, STEP11 uses the normal `con` settings
+from the setup (potentially many contrasts, bands, and p-value thresholds).
+
+Do not set `rc.analysisName` to the new prefix: `outputName` is applied only
+in multiverse mode, preserving the familiar singleverse setup. The new
+outputs go to `ana1_auto_alpha__mv_0001`, `ana1_auto_alpha__mv_0002`, and
+`ana1_auto_alpha__multiverse`. Existing source and variant outputs remain
+untouched. Existing variants from earlier manual STEP11 tests are **not**
+resumed by this version; choose a fresh output prefix. An interrupted run
+must be inspected before any manual rerun. The `allowOverwrite` option from
+previous versions remains available but is not recommended.
+
+This checks technical completion, **not** statistical reliability or
+multiverse robustness. Do not interpret p-values from a four-subject pilot
+as evidence of scientifically reliable group effects. Trial counts shown as
+`NaN` in `AR_summary.csv` may reflect diagnostic code reading the new
+analysis's empty `7_SOURCEACT`; the upstream files in `sourceAnalysis` have
+trials. This diagnostic issue is separate from the successful MVAR fits.
+
+Choose other factors using **existing ExSetup names**:
+
+```matlab
+multiverse.factors.con.mvarOrd = [5 7];
+multiverse.factors.con.chanSel = {'1-3','1-5'};
+multiverse.factors.con.removeERP = [false true];
+multiverse.factors.con.orderSelection = {'fixed','aic'};
+multiverse.factors.loc.depthWeight = [0.2 0.5];
+multiverse.factors.filter.HPfreq = [1 8];
+```
+
+**All combinations are enumerated**, not sampled. If the grid has more than
+`maxRuns` combinations, the runner stops before doing anything. Start with
+one varied factor. Distinct variants get isolated output folders and a
+machine-readable manifest with the exact settings, start stage, status and error.
+
+### Automatic reuse policy (essential to valid comparisons)
+
+| Varied factors | ASCT stages run | Required completed input |
+|---|---|---|
+| `con.mvarOrd`, `con.varNorm`, `con.chanSel`, `con.removeERP`, etc. | STEP10 | `sourceAnalysis/7_SOURCEACT` (ROI signals) |
+| `con.decimate` | STEP9–10 | `sourceAnalysis/6_ICA2`, `sourceAnalysis/7_SOURCEACT/icloc` |
+| `loc.depthWeight`, `loc.norm`, etc. | STEP8–10 | `sourceAnalysis/6_ICA2` |
+| `filter.HPfreq`, `filter.LPfreq`, etc. | STEP0–10 | raw recordings in `rc.dataRawFolder` |
+
+When changing localization, the runner reuses the original ICA2 but computes
+**new** source localization and ROI reconstructions for every variant.
+When changing filtering, it runs the whole pipeline from raw files;
+never just alters `filter.HPfreq` while reusing incompatible ROI signals.
+The `rc.sigroiName` lookup in `sc_8_CONN` and baseline ICA2 lookup in
+`sc_7_SIG_RECON` were adjusted to support this without duplicating folders.
+
+This is **not** a group-level inference workflow and does not calculate a
+scientific performance score without known ground truth. A successful run
+indicates ASCT completed; compare DTF and other connectivity results using
+appropriate real-data stability/effect metrics in a subsequent analysis.
+
+### Safety and limitations
+
+- Existing ASCT dependencies (FieldTrip, mmultar and local data paths) are
+  required for actual execution, not for the pure configuration-grid tests.
+- Two configurations are **not** two recording trials. The real-data runner
+  uses the trials in your recorded dataset, subject to ordinary ExSetup selection.
+- For STEP8, only the currently supported `loc.method='mne'` is allowed.
+- `loc.method`, template vs individual T1, and changing `rc.mriRawFolder` have
+  not yet been experimentally verified in a real-data multiverse.
+- `multiverse.dryRun=true` checks directories and produces a plan without
+  running a single ASCT data-processing stage. The first real STEP10 run
+  should use two variants and a small existing experiment.
+- Automated tests use fake dataset folders and mock callbacks; **they do not**
+  establish that FieldTrip / mmultar works with a particular real recording.
+
+Run configuration tests using `runtests('tests/TestMultiverseRealData.m')`.
+
+## M1 engine (dependency graph / cache / resume)
+
+See [M1_ENGINE.md](M1_ENGINE.md) for the non-destructive real-data runner,
+STEP0/8/9/10 stage reuse, deterministic planning, checkpoint/resume, sparse
+factor grids, and operational result collection. Cache and resume are opt-in;
+this does not change the existing STEP10-only Flanker setup by default.
+
+### M3: STEP0 paired bands, metrics plugins, and safe serial source stages
+
+**STEP0 wide/narrow without an HP × LP Cartesian grid**:
+
+```matlab
+mv.sourceAnalysis='ana1';
+mv.outputName='ana1_mv_step0_bands_new';
+mv.maxRuns=2;
+mv.dryRun=true;
+mv.cacheStages=true;
+mv.factors.filter.bandHz={[2 48],[8 12]}; % paired cutoff values, Hz
+```
+
+`bandHz` is a planner convenience, not an ASCT ExSetup field. Each choice
+becomes the effective `filter.HPfreq` / `filter.LPfreq` in saved per-variant
+configurations. `filter.HPord`, `filter.LPord`, `HPtype` and `LPtype` retain
+their ExSetup values. Review filter transition widths and data sampling
+rates before a real STEP0 run. STEP0 reruns the entire pipeline through
+STEP10 and needs raw data; it must never reuse incompatible ICA2/ROI files.
+To prevent accidental parameter combinations, specifying both `bandHz`
+and `HPfreq`/`LPfreq` is rejected. `resampleTo` must be compatible with the
+LP cutoff when set.
+
+**Opt-in metrics as plugins** (no scientific ground truth assumed):
+
+```matlab
+mv.metrics=struct('name','artifacts', ...
+                  'fn',@asct_multiverse_metric_artifacts);
+```
+
+The runner evaluates plugins after completed stage runs and writes
+`multiverse_metric_results.mat` and `multiverse_metric_results.csv`.
+The callback signature is `values=fn(runsetup,spec,context)`, with a scalar
+struct result (e.g. numeric scores, scalar metadata). Plugins are read-only:
+they must not alter stage outputs. A failed callback produces a `failed`
+metric row and does NOT change `realdata_results.mat` or the stage manifest.
+**Metrics are not included in the immutable execution plan**; they can be
+changed and recalculated later without repeating source localization/MVAR:
+
+```matlab
+root=fullfile(expFolder,'ana1_mv_flanker_m1_m2_v1__multiverse');
+plugins=struct('name','artifacts', ...
+               'fn',@asct_multiverse_metric_artifacts);
+T=asct_multiverse_metrics(root,plugins);  % read-only for stage outputs
+```
+
+For simulations with explicitly saved ROI-aligned
+`runsetup.truthConnectivity(target,source)`, a second built-in plugin is
+`@asct_multiverse_metric_truth`. It uses the existing
+`asct_multiverse_evaluate_output` scoring (F1/precision/recall/FPR).
+Do not use this plugin without known ground truth; never interpret file
+counts or uncalibrated NDTF magnitudes as scientific performance.
+
+**Parallel safety**: `sc_6_SOURCE_LOC_ICA` and `sc_7_SIG_RECON` now call
+`sc_parallelWorkerLimit(rc)` and use `parfor (..., limit)`.
+`rc.useParallel=0` forces serial execution without an implicit local pool;
+positive integers allow explicit worker limits. This targets the observed
+32-worker pool teardown segfault but must be confirmed by a Fossil session
+that exits with code 0 and no `Segmentation fault`.
+
+A ready-to-review dry-run setup is `flanker_multiverse_step0_bands_setup.m`.
+Unlike the STEP8 pilot, running it with `dryRun=false` processes raw Flanker
+recordings and can be expensive; start from the dry-run and a new outputName.

@@ -75,7 +75,17 @@ if ~isempty(rc.mriRawFolder)   % calls function only for individual realistic mo
         for ds = 1:length(mrisubj)
             mripath = char(fullfile( rc.expFolder, rc.mriRawFolder, mrisubj{ds}));
             scpath = fullfile(mripath, 'SC');
-            sc_createSrcModel(rc, char(mrisubj(ds)))
+            if isfield(rc,'multiverseIsolatedLeadfield') && rc.multiverseIsolatedLeadfield
+                % M2 reads existing individual source models but must not
+                % rebuild them in the shared subject MRI directory.
+                mriSC=fullfile(rc.expFolder,rc.mriRawFolder,char(mrisubj(ds)),'SC');
+                assert(isfile(fullfile(mriSC,'sourcemodel_indiv_acpc.mat')) && ...
+                    isfile(fullfile(mriSC,'headmodel_indiv_acpc.mat')), ...
+                    'ASCT:M2:MissingIndividualModel', ...
+                    'Individual model missing in %s. Build it with a separate singleverse first.',mriSC);
+            else
+                sc_createSrcModel(rc, char(mrisubj(ds)))
+            end
         end
     % end
 else
@@ -89,7 +99,10 @@ end
 
 if ~(rc.stop == 7)
 
-    parfor ds = 1:length(infile)  %parfor
+    % parfor without a worker limit may auto-start a 32-worker Processes
+    % pool even when rc.useParallel=0. A limit of 0 runs serially.
+    asctWorkerLimit = sc_parallelWorkerLimit(rc);
+    parfor (ds = 1:length(infile), asctWorkerLimit)
 
         [~,dsname,~] = fileparts(infile(ds));
         dsname = char(strrep(dsname, '_ica2', ''));

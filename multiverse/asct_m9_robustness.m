@@ -1,0 +1,43 @@
+function [cases,summary] = asct_m9_robustness(T,nBootstrap,seed)
+%ASCT_M9_ROBUSTNESS Quantify analytical sensitivity within each case.
+% Ranges describe variation over analysis settings, not uncertainty.
+% Bootstrap intervals are computed only across independent simulations.
+required={'replicate','simSeed','nROIs','evokedAmplitude','varianceDrift', ...
+    'f1','falsePositiveRate','stable'};
+assert(istable(T) && all(ismember(required,T.Properties.VariableNames)), ...
+    'ASCT:M9:Robustness','Missing M8 metrics');
+if isempty(T),cases=table();summary=table();return;end
+
+keyColumns={'replicate','simSeed','nROIs','evokedAmplitude','varianceDrift'};
+[firstRow,~,rowIndex]=asct_m9_group_rows(T,keyColumns);
+rows=cell(numel(firstRow),1);
+for g=1:numel(firstRow)
+    ix=rowIndex{g};
+    f=T.f1(ix);
+    fp=T.falsePositiveRate(ix);
+    assert(all(isfinite(fp)) && all(isfinite(f) | isnan(f)), ...
+        'ASCT:M9:Robustness','Invalid sensitivity metric');
+    % With no positive ground-truth edges F1 is undefined, while FPR is
+    % still meaningful. Preserve this distinction instead of aborting.
+    validF1=f(isfinite(f));
+    if isempty(validF1)
+        f1Stats=[NaN NaN NaN NaN];
+    else
+        f1Stats=[min(validF1) median(validF1) max(validF1) ...
+            max(validF1)-min(validF1)];
+    end
+    j=firstRow(g);
+    rows{g}=table(T.replicate(j),T.simSeed(j),T.nROIs(j), ...
+        T.evokedAmplitude(j),T.varianceDrift(j),numel(ix), ...
+        f1Stats(1),f1Stats(2),f1Stats(3),f1Stats(4), ...
+        min(fp),max(fp),mean(logical(T.stable(ix))), ...
+        'VariableNames',{'replicate','simSeed','nROIs','evokedAmplitude', ...
+        'varianceDrift','nVariants','minF1','medianF1','maxF1', ...
+        'f1Range','minFPR','maxFPR','fractionStableVAR'});
+end
+cases=vertcat(rows{:});
+summary=asct_m9_table_summary(cases, ...
+    {'nROIs','evokedAmplitude','varianceDrift'}, ...
+    {'minF1','medianF1','maxF1','f1Range','maxFPR','fractionStableVAR'}, ...
+    nBootstrap,seed);
+end

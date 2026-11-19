@@ -12,8 +12,11 @@ else
     iclocloadFolder = fullfile (sourceFolder, 'icloc' );
 end
 
-if isfield(rc,'iclocName')
-    icaloadFolder = fullfile (rc.expFolder, rc.iclocName,  '6_ICA2');
+if isfield(rc,'ica2Name') && ~isempty(rc.ica2Name)
+    % STEP8 multiverse uses baseline ICA2, but the current run's ICLOC.
+    icaloadFolder = fullfile(rc.expFolder, rc.ica2Name, '6_ICA2');
+elseif isfield(rc,'iclocName') && ~isempty(rc.iclocName)
+    icaloadFolder = fullfile(rc.expFolder, rc.iclocName, '6_ICA2');
 else
     icaloadFolder = fullfile (rc.analysisFolder, '6_ICA2' );
 end
@@ -66,8 +69,9 @@ if rc.useParallel>0
 end
 
 %Loading ICA and ICLOC data
-
-parfor  ds = 1 : length(infile)
+% Limit=0 forces serial execution and prevents an implicit process pool.
+asctWorkerLimit = sc_parallelWorkerLimit(rc);
+parfor (ds = 1:length(infile), asctWorkerLimit)
     load_file_ica2 = infile{ds};
     load_file_icloc = infile_icloc{ds};
 
@@ -222,6 +226,10 @@ for DC = 1:length(design.DC)
                     if exist(fullfile(scpath, 'mri_acpc_seg.mat'))
                         mri_acpc_seg = ft_read_mri(fullfile(scpath, 'mri_acpc_seg.mat'));
                     else
+                        if isfield(rc,'multiverseIsolatedLeadfield') && rc.multiverseIsolatedLeadfield
+                            error('ASCT:M2:SharedMRIWrite', ...
+                                'Missing mri_acpc_seg.mat in %s; prepare the shared MRI in singleverse first.',scpath);
+                        end
                         mri_acpc = ft_read_mri(fullfile(scpath, 'mri_acpc.mat'));
                         cfg        = [];
                         cfg.output = 'brain';

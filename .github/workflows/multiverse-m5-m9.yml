@@ -1,0 +1,48 @@
+name: ASCT M5-M9 source tests
+
+on:
+  push:
+    branches:
+      - 'feature/m5-*'
+      - 'feature/m6-*'
+      - 'feature/m9-*'
+      - 'feature/m10-*'
+  pull_request:
+    paths:
+      - '.github/workflows/multiverse-m5-m9.yml'
+      - 'multiverse/**'
+      - 'tests/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  matlab-unit:
+    name: MATLAB R2024b unit tests (M5-M10.3)
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up MATLAB R2024b
+        uses: matlab-actions/setup-matlab@v3
+        with:
+          release: R2024b
+      - name: Run isolated source tests (no real EEG, FieldTrip, or multar)
+        uses: matlab-actions/run-command@v3
+        with:
+          command: |
+            repo=getenv('GITHUB_WORKSPACE');
+            assert(~isempty(repo) && isfolder(repo),'ASCT:M10:CI','GITHUB_WORKSPACE is missing');
+            cd(repo);
+            addpath(repo);
+            addpath(fullfile(repo,'multiverse'));
+            src=fullfile(repo,'multiverse','asct_m10_snapshot.m');
+            fprintf('M10 CI checkout: %s\n',getenv('GITHUB_SHA'));
+            fprintf('M10 source exists: %d | %s\n',isfile(src),src);
+            assert(isfile(src),'ASCT:M10:CI','M10 source absent in CI checkout');
+            fprintf('M10 MATLAB resolves: %s\n',which('asct_m10_snapshot'));
+            assert(exist('asct_m10_snapshot','file')==2,'ASCT:M10:CI','M10 source not on path');
+            results=runtests({'tests/TestMultiverseM5.m','tests/TestMultiverseM6.m','tests/TestMultiverseM7.m','tests/TestMultiverseM8.m','tests/TestMultiverseM9.m','tests/TestMultiverseM10.m','tests/TestMultiverseM10Diff.m','tests/TestMultiverseM10Replay.m','tests/TestMultiverseM10Final.m'});
+            disp(results);
+            assert(~isempty(results) && all([results.Passed]),'ASCT:M9:CI','MATLAB source tests failed');

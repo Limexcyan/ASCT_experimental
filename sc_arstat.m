@@ -8,7 +8,7 @@ function sc_arstat(rc, con)
 %                         <con.conName>/lc/DC*/*_mltout.mat
 %   Discovers all DC* folders automatically.
 %   Output: <rc.expFolder>/<rc.analysisName>/8_CONN/<con.conName>/
-%               AR_summry.csv
+%               AR_summary.csv
 
 
 % fprintf('rc.expFolder    = %s\n', rc.expFolder);
@@ -19,6 +19,10 @@ disp([newline 'preparing AR statistics....' newline])
 
 % --- Paths ---
 trialRoot = fullfile(rc.expFolder, rc.analysisName, '7_SOURCEACT');
+% STEP10-only multiverse stores ROI signals in the source analysis.
+if isfield(rc,'sigroiName') && ~isempty(rc.sigroiName)
+    trialRoot = fullfile(rc.expFolder, rc.sigroiName, '7_SOURCEACT');
+end
 covRoot   = fullfile(rc.expFolder, rc.analysisName, '8_CONN', ...
     con.conName, 'lc');
 outDir    = fullfile(rc.expFolder, rc.analysisName, '8_CONN', con.conName);
@@ -125,21 +129,37 @@ for i = 1:nC
     winC(i) = string(con.conName);
 
     % Filename: <subject>_<condition>_mltout.mat
-    % Condition can contain underscores. Strip the trailing _mltout.mat
-    % then split on the LAST underscore to get subject and condition.
-    base = regexprep(covFiles(i).name, '_mltout\.mat$', '');
-    % Try to detect condition as "stay_left" / "shift_right" pattern
-    tok = regexp(base, '^(.*)_(stay|shift)_([^_]+)$', 'tokens', 'once');
-    if ~isempty(tok)
-        subC(i) = string(tok{1});
-        % condition = tok{2} + "_" + tok{3};  % not used currently
+    % Output file: <dataset>_<condition>_mltout.mat. Flanker condition
+    % FLANK_INCO contains an underscore, so splitting on the LAST
+    % underscore would truncate the dataset ID incorrectly. Match against
+    % known baseline ROI dataset stems for this DC instead.
+    base = string(regexprep(covFiles(i).name, '_mltout\.mat$', ''));
+    % startsWith(base, patternArray) returns ONE scalar indicating whether
+    % ANY pattern matches. Pairing it with a vector of DC labels would
+    % incorrectly select the first subject (typically A1) for every file.
+    % Compare each ROI stem individually to preserve the correct subject ID.
+    withinDC = find(dcT == dcC(i) & keepT);
+    candidates = zeros(0,1);
+    for ci = reshape(withinDC,1,[])
+        if startsWith(base, subT(ci) + "_")
+            candidates(end+1,1) = ci; %#ok<AGROW>
+        end
+    end
+    if ~isempty(candidates)
+        [~,longest] = max(strlength(subT(candidates)));
+        subC(i) = subT(candidates(longest));
     else
-        % Fallback: subject is everything before the last underscore
-        und = find(base == '_', 1, 'last');
-        if ~isempty(und)
-            subC(i) = string(base(1:und-1));
+        % Legacy fallback when the original ROI file is not available.
+        tok = regexp(char(base), '^(.*)_(stay|shift)_([^_]+)$', 'tokens', 'once');
+        if ~isempty(tok)
+            subC(i) = string(tok{1});
         else
-            subC(i) = string(base);
+            und = find(char(base) == '_', 1, 'last');
+            if ~isempty(und)
+                subC(i) = extractBefore(base,und);
+            else
+                subC(i) = base;
+            end
         end
     end
     fileC(i) = string(covFiles(i).name);
@@ -176,7 +196,17 @@ T = outerjoin(B, A, 'Keys', {'Subject','DC'}, ...
 T = T(:, {'Subject','Window','DC','nTrials','avgVr'});
 T = sortrows(T, {'Window','Subject','DC'});
 
-T.avgVr = round(T.avgVr, 2);   % 3 decimal places
+% Preserve full precision in CSV: raw ROI residual variance may be
+% much smaller than 0.005, so rounding to two decimals would make it 0.
+if nnz(keepC) ~= nC
+    warning('ASCT:ARSummary:MissingCovariance', ...
+        'Only %d/%d connectivity files contain a valid ARs.V matrix.', nnz(keepC), nC);
+end
+if height(T) ~= nnz(keepC)
+    warning('ASCT:ARSummary:UnexpectedRows', ...
+        'Unexpected report row count: %d rows for %d valid covariance files.', ...
+        height(T), nnz(keepC));
+end
 disp(T);
 
 writetable(T, outCSV);
