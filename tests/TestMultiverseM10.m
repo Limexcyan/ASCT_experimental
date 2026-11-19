@@ -1,5 +1,15 @@
 classdef TestMultiverseM10 < matlab.unittest.TestCase
     % Opt-in provenance inventory; tests never require EEG or FieldTrip.
+    % Each suite resolves its source path independently of CI working folder.
+    methods (TestClassSetup)
+        function addSourcePath(tc)
+            repoRoot=fileparts(fileparts(mfilename('fullpath')));
+            sourceDir=fullfile(repoRoot,'multiverse');
+            tc.assertTrue(isfolder(sourceDir), ...
+                sprintf('M10 source directory missing: %s',sourceDir));
+            tc.applyFixture(matlab.unittest.fixtures.PathFixture(sourceDir));
+        end
+    end
     methods (Test)
         function snapshotAndVerifyExactHashes(tc)
             root=tempname; mkdir(root);
