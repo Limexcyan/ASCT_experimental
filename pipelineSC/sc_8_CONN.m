@@ -111,8 +111,10 @@ if ~strcmp(mv.chansel,'1-')
             fprintf(fid, loc.ROI(i).name);
         end
         fclose(fid);
+        % Match multar's output labels to the selected ROI subset.
+        mv.descfil = labelfiletrim;
     else
-        warning('Cannot open trim label file %s', filename);
+        error('ASCT:M8:Labels','Cannot write ROI labels to %s',labelfiletrim);
     end
 end
 

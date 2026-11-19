@@ -4,7 +4,7 @@
 
 This is a **non-invasive validation scaffold**, not a full implementation merged into ASCT. It does not run or rewrite the multiverse engine. The exact current GitHub repository sources were not accessible when the package was made, so we must not guess parameter names or assume a specific STEP0 artifact layout. No MATLAB run on Fossil has been performed for this package.
 
-The user team TODO (Mirek and Michał) is explicitly out of scope.
+The user team TODO (Mirek and Michal) is explicitly out of scope.
 
 ## What the uploaded logs establish
 
