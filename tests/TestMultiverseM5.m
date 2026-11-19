@@ -1,5 +1,16 @@
 classdef TestMultiverseM5 < matlab.unittest.TestCase
     % Tests for the independent M5 core; does not require raw EEG or FieldTrip.
+    methods (TestClassSetup)
+        function ensureM5SourcePath(tc)
+            repoRoot=fileparts(fileparts(mfilename('fullpath')));
+            sourceDir=fullfile(repoRoot,'multiverse');
+            tc.assertTrue(isfolder(sourceDir), ...
+                sprintf('M5 source directory missing: %s',sourceDir));
+            tc.applyFixture(matlab.unittest.fixtures.PathFixture(sourceDir));
+            tc.assertEqual(exist('asct_m5_plan','file'),2, ...
+                sprintf('MATLAB cannot find asct_m5_plan in %s',sourceDir));
+        end
+    end
     methods (Test)
         function selectedIdsStable(tc)
             specs=struct('id',{'mv_0001','mv_0002','mv_0003'});
