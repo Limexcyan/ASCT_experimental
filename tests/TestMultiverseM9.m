@@ -23,6 +23,36 @@ classdef TestMultiverseM9 < matlab.unittest.TestCase
             tc.verifyEqual(m.strengthMAE,0);
             tc.verifyGreaterThanOrEqual(m.tp,1);
         end
+        function edgeMetricsHandleMissingClassAndSelfEdges(tc)
+            D=zeros(3,3,1);
+            D(2,1)=0.9;D(3,1)=0.8;D(1,1)=1;
+            truth=false(3);truth(2,1)=true;
+            s=asct_m9_edge_metrics(D,truth,0.5);
+            tc.verifyEqual([s.tp s.fp s.fn s.tn],[1 1 0 4]);
+            tc.verifyEqual(s.f1,2/3,'AbsTol',1e-12);
+            tc.verifyEqual(s.falseDiscoveryRate,0.5);
+            tc.verifyEqual(s.specificity,0.8);
+            tc.verifyEqual(s.matthewsCorrelation,4/sqrt(40),'AbsTol',1e-12);
+            tc.verifyFalse(s.exactGraphRecovery);
+            empty=asct_m9_edge_metrics(D,false(3),0.5);
+            tc.verifyTrue(isnan(empty.recall) && isnan(empty.f1));
+            tc.verifyEqual(empty.falsePositiveRate,2/6);
+            tc.verifyTrue(isnan(empty.balancedAccuracy));
+            tc.verifyTrue(isnan(empty.matthewsCorrelation));
+            tc.verifyTrue(isnan(asct_m9_edge_metrics(D,true(3),0.5).specificity));
+        end
+        function rankingAUCHandlesTiesAndNullGraphs(tc)
+            D=zeros(3,3,1);
+            D(2,1)=0.8;D(3,1)=0.8;D(1,2)=0.2;
+            truth=false(3);truth(2,1)=true;
+            p=asct_m9_discrimination(D,truth);
+            % One tied false positive has the same score as the true edge.
+            tc.verifyEqual(p.auroc,0.9,'AbsTol',1e-12);
+            tc.verifyEqual(p.averagePrecision,0.5,'AbsTol',1e-12);
+            tc.verifyTrue(isnan(asct_m9_discrimination(D,false(3)).auroc));
+            tc.verifyTrue(isnan(asct_m9_discrimination(D,false(3)).averagePrecision));
+            tc.verifyTrue(isnan(asct_m9_discrimination(D,~eye(3)).auroc));
+        end
         function bootstrapIsReproducibleAndRestoresRng(tc)
             state=rng;
             a=asct_m9_bootstrap((1:10)',100,33);

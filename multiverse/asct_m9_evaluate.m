@@ -17,12 +17,10 @@ if isfield(fit,'Adtf'), dtfCoefficients=fit.Adtf; end
 D=asct_mvar_dtf(dtfCoefficients,fs,frequencyHz);
 assert(all(isfinite(D(:))),'ASCT:M9:InvalidDTF', ...
     'Non-finite DTF: the fitted VAR is not evaluable');
-score=asct_multiverse_score(D,logical(truth),threshold);
-if ~any(logical(truth(:)))
-    % No actual positives: recall and F1 are undefined; FPR remains valid.
-    score.recall=NaN;
-    score.f1=NaN;
-end
+score=asct_m9_edge_metrics(D,truth,threshold);
+ranking=asct_m9_discrimination(D,truth);
+score.auroc=ranking.auroc;
+score.averagePrecision=ranking.averagePrecision;
 mask=logical(truth) & ~eye(n);
 [targets,sources]=find(mask);
 lagError=zeros(numel(targets),1);
