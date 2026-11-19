@@ -47,4 +47,13 @@ fit=struct('A',A,'Adtf',Astandardized,'order',order,'aicValues',aic, ...
     'diagnostics',asct_m8_diagnostics(data,physicalResidual,order,A), ...
     'normalizationScale',scale,'nObservations',info.nObservations, ...
     'oracleOLS',true,'productionMultarValidated',false);
+% Exploratory per-ROI residual whiteness screen, kept separate from
+% model stability and from the production multar significance machinery.
+maxResidualLag=min(10,T-order-2);
+if maxResidualLag>order
+    R=reshape(physicalResidual,n,T-order,nTr);
+    fit.residualTests=asct_m9_residual_tests(R,order,maxResidualLag,0.05);
+else
+    fit.residualTests=table();
+end
 end

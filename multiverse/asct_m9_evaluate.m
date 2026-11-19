@@ -49,4 +49,13 @@ score.validForInference=logical(score.stable); % residual checks reported separa
 score.residualLag1=fit.diagnostics.maxLag1ResidualCorrelation;
 score.maxVarianceRatio=fit.diagnostics.maxVarianceRatio;
 score.evokedRMSFraction=fit.diagnostics.evokedRMSFraction;
+score.residualWhitenessMinP=NaN;
+score.residualWhitenessFlag=false;
+if isfield(fit,'residualTests') && ~isempty(fit.residualTests)
+    p=fit.residualTests.pHolm;
+    if any(isfinite(p))
+        score.residualWhitenessMinP=min(p(isfinite(p)));
+        score.residualWhitenessFlag=any(fit.residualTests.rejectApproxWhiteness);
+    end
+end
 end

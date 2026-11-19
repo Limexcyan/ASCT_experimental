@@ -21,7 +21,7 @@ summary=T(firstRow,groupColumns);
 summary.nReplicates=zeros(nGroups,1);
 for m=1:numel(metricColumns)
     name=metricColumns{m};
-    assert(isnumeric(T.(name)) && isvector(T.(name)), ...
+    assert((isnumeric(T.(name)) || islogical(T.(name))) && isvector(T.(name)), ...
         'ASCT:M9:Metric','Metric %s must be a numeric vector',name);
     summary.(['mean_' name])=NaN(nGroups,1);
     summary.(['low_' name])=NaN(nGroups,1);
@@ -41,7 +41,7 @@ for g=1:nGroups
     end
     for m=1:numel(metricColumns)
         name=metricColumns{m};
-        metricValues=T.(name);
+        metricValues=double(T.(name));
         values=metricValues(ix);
         values=values(isfinite(values));
         n=numel(values);

@@ -196,6 +196,27 @@ classdef TestMultiverseM9 < matlab.unittest.TestCase
             tc.verifyEqual(S.nValid_gain,[0;2]);
             tc.verifyTrue(isnan(S.pAdjusted_gain(1)));
         end
+        function residualScreenSeparatesTrialsAndReportsApproximateP(tc)
+            state=rng;tc.addTeardown(@()rng(state));
+            rng(22,'twister');
+            white=randn(2,160,8);
+            W=asct_m9_residual_tests(white,1,6,0.05);
+            tc.verifyEqual(height(W),2);
+            tc.verifyTrue(all(W.pHolm>=0 & W.pHolm<=1));
+            correlated=filter(1,[1 -0.9],white,[],2);
+            C=asct_m9_residual_tests(correlated,1,6,0.05);
+            tc.verifyTrue(all(C.rejectApproxWhiteness));
+            tc.verifyTrue(all(abs(C.lag1Correlation)>0.5));
+            tc.verifyError(@()asct_m9_residual_tests(white,6,6), ...
+                'ASCT:M9:Lags');
+        end
+        function realDataSummaryNeverCreatesSyntheticTruth(tc)
+            root=fileparts(fileparts(mfilename('fullpath')));
+            source=fileread(fullfile(root,'multiverse', ...
+                'asct_m9_realdata_summary.m'));
+            tc.verifyTrue(contains(source,'asct_m8_conn_audit'));
+            tc.verifyFalse(contains(source,'asct_m9_evaluate('));
+        end
         function summaryGroupsCorrectly(tc)
             T=table([1;1;2;2], [1;2;1;2],[0.2;0.4;0.6;0.8], ...
                 'VariableNames',{'scenario','replicate','f1'});
